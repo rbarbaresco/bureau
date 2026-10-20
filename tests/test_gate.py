@@ -112,6 +112,9 @@ class GateTest(unittest.TestCase):
         self.assertIn("ancestor/AGENTS.md", names)
         self.assertTrue(any(n.endswith("clone/extra.md") for n in names))
 
+    def test_resolver_includes_bureau_base_rules(self):
+        self.assertIn(os.path.join(ROOT, "AGENTS.md"), rules.collect(self.wt))
+
     def test_approve_hook_records_awaiting_step(self):
         self.state({"current": "plan", "awaiting": "plan", "steps": STEPS})
         desk = os.path.join(ROOT, "desk")
