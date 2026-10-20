@@ -64,7 +64,9 @@ def start(name_or_file, card_dir):
     wf = parse(path)
     steps = [{k: v for k, v in s.items() if k != "instructions"} for s in wf["steps"]]
     desk.init(card_dir, steps, wf["name"])
-    shutil.copy(path, os.path.join(card_dir, "workflow.md"))  # the run keeps its own copy
+    dest = os.path.join(card_dir, "workflow.md")  # the run keeps its own copy
+    if os.path.abspath(path) != os.path.abspath(dest):
+        shutil.copy(path, dest)
 
 
 if __name__ == "__main__":

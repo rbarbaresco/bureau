@@ -2,6 +2,7 @@
 """Card state: create and read desk/<card>/state.json.
 
 Usage: desk.py init <card-dir> '<steps-json>'
+       desk.py list [desk-dir]
        desk.py finish|advance <card-dir>
        desk.py revise <card-dir> '<feedback>'
        desk.py reject <card-dir> <to-step> '<reason>'
@@ -165,8 +166,21 @@ def skip(card_dir, step_id):
     return s
 
 
+def list_cards(desk_dir):
+    """One line per run, nested tasks included: path, workflow, current step, awaiting."""
+    rows = []
+    for root, _, files in os.walk(desk_dir):
+        if "state.json" in files and "worktrees" not in os.path.relpath(root, desk_dir).split(os.sep):
+            s = load(root)
+            rows.append(f"{os.path.relpath(root, desk_dir)}\t{s.get('workflow')}\t{s['current']}\t{s.get('awaiting') or '-'}")
+    return rows
+
+
 if __name__ == "__main__":
     a = sys.argv[1:]
+    if a[:1] == ["list"]:
+        print("\n".join(list_cards(a[1] if len(a) > 1 else os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "desk"))))
+        sys.exit(0)
     try:
         cmd = {"init": lambda: init(a[1], json.loads(a[2])), "finish": lambda: finish(a[1]),
                "advance": lambda: advance(a[1]), "revise": lambda: revise(a[1], a[2]),

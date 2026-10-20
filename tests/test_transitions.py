@@ -68,5 +68,16 @@ class TransitionTest(unittest.TestCase):
             desk.add(self.card, "plan", {"id": "build"})  # duplicate id
 
 
+class ListTest(unittest.TestCase):
+    def test_list_finds_nested_runs_and_skips_worktrees(self):
+        d = tempfile.mkdtemp()
+        desk.init(os.path.join(d, "P-1"), STEPS, "project")
+        desk.init(os.path.join(d, "P-1", "tasks", "T-1"), STEPS, "task")
+        os.makedirs(os.path.join(d, "P-1", "worktrees", "r"))
+        open(os.path.join(d, "P-1", "worktrees", "r", "state.json"), "w").write("{}")  # a repo's own file
+        rows = desk.list_cards(d)
+        self.assertEqual(sorted(r.split("\t")[0] for r in rows), ["P-1", "P-1/tasks/T-1"])
+
+
 if __name__ == "__main__":
     unittest.main()
