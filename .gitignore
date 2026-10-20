@@ -1,0 +1,5 @@
+# run state and local config: card text, local paths
+desk/*
+!desk/.gitkeep
+repos.yaml
+__pycache__/

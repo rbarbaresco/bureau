@@ -1,0 +1,6 @@
+# Copy to repos.yaml (gitignored) and point each name at an existing local clone.
+# Worktrees for a card are created from these clones under desk/<card-id>/worktrees/<name>/.
+repos:
+  my-service:
+    path: ~/code/my-service      # existing clone; its parent folders' AGENTS.md/CLAUDE.md are loaded too
+    base: main                   # branch new worktrees start from
