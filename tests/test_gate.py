@@ -95,6 +95,9 @@ class GateTest(unittest.TestCase):
         self.assertIsNotNone(self.run_gate("Bash", command="cd worktrees/clone && touch x"))
         self.assertIsNone(self.run_gate("Bash", command=f"ls {self.wt} && git -C {self.wt} status"))
         self.assertIsNone(self.run_gate("Bash", command="rg foo worktrees/clone"))
+        self.assertIsNone(self.run_gate("Bash", command="rg foo worktrees/clone 2>/dev/null | head -5"))
+        self.assertIsNone(self.run_gate("Bash", command="grep -rn foo worktrees/clone 2>&1"))
+        self.assertIsNotNone(self.run_gate("Bash", command="cat a >/dev/null; touch worktrees/clone/x"))
 
     def test_rules_loader_runs_before_ack(self):
         cmd = f"python3 {ROOT}/hooks/rules.py {self.wt}"

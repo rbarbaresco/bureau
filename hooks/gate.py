@@ -24,6 +24,7 @@ READ_ONLY = re.compile(
     r"|^\s*python3?\s+\S*/scripts/worktree\.py\b"  # creates the worktree itself
 )
 UNSAFE = re.compile(r"[>`]|\$\(")  # redirects and substitutions can write from a "read-only" command
+HARMLESS_REDIRECT = re.compile(r"\d?>\s*/dev/null|\d?>&\d")
 
 
 def deny(reason):
@@ -72,6 +73,7 @@ def check(card, repo):
 
 
 def read_only(cmd):
+    cmd = HARMLESS_REDIRECT.sub("", cmd)
     segs = [s for s in re.split(r"[;|&\n]+", cmd) if s.strip()]
     return not UNSAFE.search(cmd) and all(READ_ONLY.match(s) for s in segs)
 
