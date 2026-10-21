@@ -199,19 +199,19 @@ class GateTest(unittest.TestCase):
         self.assertIn(os.path.join(ROOT, "AGENTS.md"), rules.collect(self.wt))
 
     def test_approve_hook_records_awaiting_step(self):
-        self.state({"current": "plan", "awaiting": "plan", "steps": STEPS})
-        desk = os.path.join(ROOT, "desk")
+        desk = os.path.join(self.tmp, "desk")  # setUp's ABC-1 is not awaiting, so only TEST-APPROVE matches
         card = os.path.join(desk, "TEST-APPROVE")
         write(os.path.join(card, "state.json"), json.dumps({"awaiting": "plan", "steps": STEPS}))
-        try:
-            run = lambda prompt: subprocess.run([sys.executable, APPROVE], input=json.dumps({"prompt": prompt}),
-                                                capture_output=True, text=True).stdout
-            self.assertEqual(run("hello"), "")
-            self.assertIn("approved step 'plan'", run("/approve TEST-APPROVE"))
-            with open(os.path.join(card, "approvals.json")) as f:
-                self.assertEqual(json.load(f), {"plan": True})
-        finally:
-            subprocess.run(["rm", "-rf", card])
+        env = {**os.environ, "BUREAU_DESK": desk}
+        run = lambda prompt: subprocess.run([sys.executable, APPROVE], input=json.dumps({"prompt": prompt}),
+                                            capture_output=True, text=True, env=env).stdout
+        self.assertEqual(run("hello"), "")
+        for prompt in ("/approve TEST-APPROVE", "/approve"):
+            out = run(prompt)
+            self.assertIn("approved step 'plan'", out)
+            self.assertIn("card=TEST-APPROVE", out.split())
+        with open(os.path.join(card, "approvals.json")) as f:
+            self.assertEqual(json.load(f), {"plan": True})
 
 
 if __name__ == "__main__":
