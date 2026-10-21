@@ -19,4 +19,4 @@ An issue is a work artifact: one reader who has the context, picking it up later
 
 Edits to an issue that already exists (`gh issue edit`, comments) need the same approval.
 
-End the reply with where work landed, per `AGENTS.md`: for a draft, "no files changed"; after filing, the issue URL.
+End the reply with where the work landed: the issue URL after filing, and any file written.
