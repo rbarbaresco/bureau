@@ -98,7 +98,24 @@ def check(card, repo, cmd=None):
         deny(f"Repo rules for '{repo}' are not loaded or changed. Run: python3 {rules.BUREAU}/hooks/rules.py {wt}")
 
 
-def read_only(cmd):
+DESK = re.compile(  # bare words and single-quoted text only: nothing for bash to expand, split or comment out
+    r"[ \t]*python3?[ \t]+(?P<script>[\w./][\w./-]*)[ \t]+(?:init|list|finish|advance|revise|reject|add|skip)"
+    r"(?:[ \t]+(?P<card>[\w./-]+)(?:[ \t]+(?:'[^']*'|[\w.-]+))*)?[ \t]*")
+
+
+def desk_state(cmd, cwd):
+    """One invocation of Bureau's own desk.py (by real path) on a card path outside any worktree: card state only."""
+    m = DESK.fullmatch(cmd)
+    if not m:
+        return False
+    if os.path.realpath(os.path.join(cwd, m["script"])) != os.path.join(os.path.realpath(rules.BUREAU), "scripts", "desk.py"):
+        return False
+    return not WT.match(os.path.realpath(os.path.join(cwd, m["card"] or "")) + "/")
+
+
+def read_only(cmd, cwd=""):
+    if desk_state(cmd, cwd):
+        return True
     cmd = HARMLESS_REDIRECT.sub("", cmd)
     segs = [s for s in re.split(r"[;|&\n]+", cmd) if s.strip()]
     return not UNSAFE.search(plain(cmd)) and all(READ_ONLY.match(s) for s in segs)
@@ -129,7 +146,7 @@ def main():
             check(m["card"], m["repo"])
     elif tool == "Bash":
         cmd = inp.get("command", "")
-        if read_only(cmd):
+        if read_only(cmd, ev.get("cwd", "")):
             return
         if "approvals.json" in cmd:
             deny("approvals.json is written only by the /approve hook.")
