@@ -223,6 +223,31 @@ class SessionsTest(unittest.TestCase):
         self.assertFalse(sessions.claim(self.card, "s2", 1, seen))
         self.assertEqual(sessions.last(self.card)["session"], "s1")
 
+    def test_card_path_forms_after_redirect_or_option(self):
+        self.own("s1", self.claude())
+        c = self.card
+        for cmd in (f"echo x>{c}/state.json", f"echo x >{c}/state.json", f"sed -i s/a/b/ --file={c}/state.json",
+                    f"python3 -c \"open('{c}/state.json','w')\"", f"(rm {c}/state.json)"):
+            self.assertIn("held by session s1", self.gate("s2", command=cmd) or "ALLOWED", cmd)
+        self.assertIsNone(self.gate("s2", command=f"touch {self.tmp}/mydesk/ABC-1"))  # not a desk/ path
+
+    def test_card_md_write_claims_new_card(self):
+        new = os.path.join(self.desk, "NEW-2")
+        self.hook("gate.py", {"tool_name": "Write", "tool_input": {"file_path": f"{new}/card.md"}, "session_id": "s1"}, self.claude())
+        self.assertEqual(sessions.status(new, "s1"), "mine")
+        self.assertIn("held by session s1", self.gate("s2", "Write", file_path=f"{new}/card.md"))
+        legacy = os.path.join(self.desk, "OLD-2")  # has a state.json: not a new card
+        os.makedirs(legacy)
+        open(os.path.join(legacy, "state.json"), "w").close()
+        self.gate("s2", "Write", file_path=f"{legacy}/card.md")
+        self.assertEqual(sessions.events(legacy), [])
+
+    def test_claimed_card_without_state_json_is_protected(self):
+        intake = os.path.join(self.desk, "NOSTATE-1")
+        self.own("s1", self.claude(), intake)
+        for f in ("card.md", "state.json", "x/y.md"):
+            self.assertIn("held by session s1", self.gate("s2", "Write", file_path=f"{intake}/{f}"), f)
+
 
 if __name__ == "__main__":
     unittest.main()

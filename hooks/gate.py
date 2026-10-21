@@ -57,10 +57,10 @@ def load(path):
 
 
 def card_root(path):
-    """Nearest ancestor holding a state.json."""
+    """Nearest ancestor holding a state.json (or, for a card still in intake, a session log)."""
     d = os.path.abspath(path)
     while d != "/":
-        if os.path.isfile(os.path.join(d, "state.json")):
+        if os.path.isfile(os.path.join(d, "state.json")) or os.path.isfile(os.path.join(d, "sessions.jsonl")):
             return d
         d = os.path.dirname(d)
     return None
@@ -132,7 +132,7 @@ def desk_state(cmd, cwd):
 NEW = re.compile(  # the whole command, bare words and single-quoted text only: a mention in echo/grep/git is not a start
     r"[ \t]*python3?[ \t]+(?P<script>[\w./][\w./-]*)[ \t]+(?:start[ \t]+[\w./-]+|init)[ \t]+(?P<card>[\w./-]+)"
     r"(?:[ \t]+(?:'[^']*'|[\w.-]+))*[ \t]*")
-CARD_REF = re.compile(r"\S*?/?desk/[\w.-]+")
+CARD_REF = re.compile(r"(?<![\w.-])(?:[\w./~-]*/)?desk/[\w.-]+")  # after > = ' ( too, not only after a space
 
 
 def claim_new(cmd, cwd, session):
@@ -148,9 +148,17 @@ def claim_new(cmd, cwd, session):
         sessions.claim(card, session, sessions.my_pid(), None, why="new")
 
 
+def claim_intake(path, session):
+    """Intake writes desk/<id>/card.md first: the session that does it owns the card (no state.json, no log yet)."""
+    card = os.path.dirname(path)
+    if os.path.basename(path) == "card.md" and os.path.basename(os.path.dirname(card)) == "desk" \
+            and not os.path.exists(os.path.join(card, "state.json")) and sessions.last(card) is None:
+        sessions.claim(card, session, sessions.my_pid(), None, why="new")
+
+
 def named_cards(cmd, cwd):
     """Card dirs a command names by path (desk/<id>, however quoted or chained)."""
-    return {os.path.realpath(os.path.join(cwd, m[0].lstrip("\"'="))) for m in CARD_REF.finditer(cmd)}
+    return {os.path.realpath(os.path.join(cwd, m[0])) for m in CARD_REF.finditer(cmd)}
 
 
 def read_only(cmd, cwd=""):
@@ -180,6 +188,7 @@ def main():
     tool, inp = ev.get("tool_name"), ev.get("tool_input", {})
     if tool in ("Edit", "Write", "NotebookEdit"):
         path = os.path.abspath(inp.get("file_path") or inp.get("notebook_path") or "")
+        claim_intake(path, session)
         if card_root(os.path.dirname(path)):
             owner(card_root(os.path.dirname(path)), session)
         if path.endswith("/approvals.json") and "/desk/" in path:
