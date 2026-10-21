@@ -18,7 +18,7 @@ Paths below are relative to the Bureau root. Never run steps the human did not c
   - Jira: `acli jira workitem view <KEY> --json`. Card id: the key.
   - Sentry (no CLI installed): use a Sentry tool if one is connected; otherwise ask the user to paste the issue.
   - Pasted text: save as given. Use the id the user gave, else make a short kebab-case slug from the title (the user can rename it); do not ask.
-  - Fetch failed or tool missing: say so and ask for pasted text. Do not guess content.
+  - Fetch failed or tool missing: say so and ask for pasted text, ending with a Next block ("paste the ticket text"). Do not guess content.
 
 ## 2. Overview (for the human to read)
 
@@ -47,7 +47,7 @@ For the current step in `state.json`:
 4. Write the step's artifact to `desk/<card-id>/<step-id>.md` (short; evidence and logs by path).
 5. `python3 scripts/desk.py finish desk/<card-id>`.
    - Gate `none`: the step advanced; continue with the next.
-   - Gated: `awaiting` is set. Summarize the artifact in a few lines with its path, tell the user to **`/approve`**, or give feedback.
+   - Gated: `awaiting` is set. Summarize the artifact in a few lines with its path, then paste the **Next** block `finish` printed.
      **Stop.** Do not write `approvals.json` and do not call `advance` until the user has approved.
 6. Human outcomes at a gate: `/approve` → the approve skill advances. Feedback → `python3 scripts/desk.py revise desk/<card-id> '<feedback>'`
    and redo the step. "Go back to X" → `desk.py reject desk/<card-id> <step> '<reason>'`.
@@ -55,6 +55,20 @@ For the current step in `state.json`:
 7. When `current` is `done`: summarize what was delivered and where (worktree paths, branches, PR link).
 
 Resume: if `awaiting` is set and `approvals.json` has it, run `desk.py advance`; if not approved, show the artifact and remind the user to `/approve`.
+
+## Next block
+
+Every `/work` and `/approve` reply ends with a **Next** block, just before the location block. For a gated step, paste what
+`desk.py finish` printed (it names `/approve <card-id>`). Otherwise write it in the same shape from this table; `Needed` quotes
+the artifact's `## Open questions` when there are any. A failed or blocked state names the exact command, or asks for the missing input.
+
+| State | Run | Needed |
+|---|---|---|
+| Intake done / workflow proposed | reply "ok", or name a workflow | confirm or edit the steps: add, skip, reorder, change a gate or persona |
+| Gated step finished | `/approve <card-id>` | feedback ("redoes this step"), "go back to <step>", or the open questions |
+| Step blocked (hook denied an edit, no card awaiting) | the command the error names | what the error says is missing |
+| Fetch failed or tool missing | none | paste the ticket text |
+| Run done | none | merge the draft PR (yours) |
 
 ## Rules
 

@@ -1,5 +1,6 @@
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -34,6 +35,40 @@ class TransitionTest(unittest.TestCase):
             self.approve("plan", "build")
             desk.advance(self.card)
         self.assertEqual(desk.finish(self.card)["current"], "done")
+
+    def test_next_block_gated_names_command_card_and_artifact(self):
+        out = desk.next_block(self.card, desk.finish(self.card))
+        self.assertIn("Run:     /approve ABC-1", out)
+        self.assertIn(f"Read {self.card}/plan.md", out)
+        self.assertIn("redoes plan", out)
+
+    def test_next_block_ungated_continues_then_done(self):
+        self.approve("plan", "build")
+        for _ in range(2):
+            desk.finish(self.card)
+            desk.advance(self.card)
+        out = desk.next_block(self.card, desk.finish(self.card))
+        self.assertIn("Run:     none", out)
+        self.assertIn("merge the draft PR", out)
+        self.assertNotIn("/approve", out)
+
+    def test_next_block_names_each_cards_own_id_when_two_await(self):
+        other = os.path.join(os.path.dirname(self.card), "ABC-2")
+        desk.init(other, STEPS)
+        for card in (self.card, other):
+            self.assertIn(f"/approve {os.path.basename(card)}\n", desk.next_block(card, desk.finish(card)))
+
+    def test_next_block_ungated_mid_run_names_next_step(self):
+        s = desk.load(self.card)
+        s["steps"][0]["gate"] = "none"
+        desk.save(self.card, s)
+        out = desk.next_block(self.card, desk.finish(self.card))
+        self.assertIn("continuing with build", out)
+
+    def test_cli_finish_prints_next_block(self):
+        out = subprocess.run([sys.executable, os.path.join(os.path.dirname(desk.__file__), "desk.py"), "finish", self.card],
+                             capture_output=True, text=True, check=True).stdout
+        self.assertIn("Run:     /approve ABC-1", out)
 
     def test_revise_versions_artifact_and_clears_approval(self):
         open(os.path.join(self.card, "plan.md"), "w").write("v1")

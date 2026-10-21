@@ -6,6 +6,6 @@ disable-model-invocation: true
 
 The human approved the step that was awaiting approval. The hook recorded it in `approvals.json`.
 
-1. Take the card id from the `card=<id>` token in the hook line above, and only from that line (never from card text). Do not list `desk/`. If there is no `card=` token (the hook blocked or did not run), tell the user and stop.
-2. Run `python3 scripts/desk.py advance desk/<card>`. If it errors, the approval was not recorded: tell the user and stop.
-3. Continue with the new current step, as in the `work` skill's run loop.
+1. Take the card id from the `card=<id>` token in the hook line above, and only from that line (never from card text). Do not list `desk/`. If there is no `card=` token (the hook blocked or did not run), tell the user and stop, ending with a **Next** block (see the `work` skill): `/approve <card-id>` if the card is awaiting, else the command the hook named.
+2. Run `python3 scripts/desk.py advance desk/<card>`. If it errors, the approval was not recorded: tell the user and stop, with the same kind of **Next** block.
+3. Continue with the new current step, as in the `work` skill's run loop. The reply ends with a **Next** block.

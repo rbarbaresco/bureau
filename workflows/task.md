@@ -15,6 +15,7 @@ gate: approve
 
 Write plan.md: approach, files and callers affected, test strategy, risks, and what is deliberately out of scope.
 Stop here; the human approves before any code.
+End the artifact with `## Open questions` (or "none").
 
 ## build
 persona: staff-engineer
@@ -23,6 +24,7 @@ writes_code: true
 
 Load the repo rules, create the worktree, then implement test first. Write build.md: what changed,
 test output, deviations from plan.md and why.
+End the artifact with `## Open questions` (or "none").
 
 ## review
 persona: qa
