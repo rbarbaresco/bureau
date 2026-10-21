@@ -13,14 +13,16 @@ import workflow  # noqa: E402
 
 class WorkflowTest(unittest.TestCase):
     def test_shipped_workflows_parse(self):
-        for name in ("bugfix", "task"):
+        for name in ("bugfix", "task", "small"):
             wf = workflow.parse(os.path.join(ROOT, "workflows", name + ".md"))
             self.assertEqual(wf["name"], name)
             self.assertTrue(wf["steps"])
-            self.assertEqual([s["id"] for s in wf["steps"]].count("plan"), 1)
             code = [s for s in wf["steps"] if s["writes_code"]]
             self.assertEqual(len(code), 1)
             self.assertEqual(code[0]["gate"], "approve")
+            # the human approves something before any code is written (plan, or understand in `small`)
+            before = wf["steps"][: wf["steps"].index(code[0])]
+            self.assertTrue(any(s["gate"] == "approve" for s in before), name)
             self.assertTrue(all(s["instructions"] for s in wf["steps"]))
 
     def test_malformed_rejected(self):
