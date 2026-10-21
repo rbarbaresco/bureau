@@ -8,7 +8,15 @@
     ],
     "UserPromptSubmit": [
       {
-        "hooks": [{ "type": "command", "command": "python3 \"$CLAUDE_PROJECT_DIR/hooks/approve.py\"" }]
+        "hooks": [
+          { "type": "command", "command": "python3 \"$CLAUDE_PROJECT_DIR/hooks/approve.py\"" },
+          { "type": "command", "command": "python3 \"$CLAUDE_PROJECT_DIR/hooks/owner.py\"" }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [{ "type": "command", "command": "python3 \"$CLAUDE_PROJECT_DIR/hooks/session_end.py\"" }]
       }
     ]
   }

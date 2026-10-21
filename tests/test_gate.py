@@ -8,6 +8,7 @@ import unittest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "hooks"))
 import rules  # noqa: E402
+import sessions  # noqa: E402
 
 GATE = os.path.join(ROOT, "hooks", "gate.py")
 APPROVE = os.path.join(ROOT, "hooks", "approve.py")
@@ -203,7 +204,8 @@ class GateTest(unittest.TestCase):
         card = os.path.join(desk, "TEST-APPROVE")
         write(os.path.join(card, "state.json"), json.dumps({"awaiting": "plan", "steps": STEPS}))
         env = {**os.environ, "BUREAU_DESK": desk}
-        run = lambda prompt: subprocess.run([sys.executable, APPROVE], input=json.dumps({"prompt": prompt}),
+        sessions.append(card, "claim", "s1", os.getpid())  # bare /approve needs the caller to own the card
+        run = lambda prompt: subprocess.run([sys.executable, APPROVE], input=json.dumps({"prompt": prompt, "session_id": "s1"}),
                                             capture_output=True, text=True, env=env).stdout
         self.assertEqual(run("hello"), "")
         for prompt in ("/approve TEST-APPROVE", "/approve"):

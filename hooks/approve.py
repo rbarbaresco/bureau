@@ -10,8 +10,9 @@ import os
 import re
 import sys
 
-# BUREAU_DESK lets tests point at a temp desk; the agent cannot set env for a hook.
-DESK = os.environ.get("BUREAU_DESK") or os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "desk")
+import sessions
+
+DESK = sessions.DESK
 
 
 def block(reason):
@@ -20,7 +21,8 @@ def block(reason):
 
 
 def main():
-    m = re.match(r"\s*/approve\b\s*(\S*)", json.load(sys.stdin).get("prompt", ""))
+    ev = json.load(sys.stdin)
+    m = re.match(r"\s*/approve\b\s*(\S*)", ev.get("prompt", ""))
     if not m:
         return
     want = m[1]
@@ -28,10 +30,12 @@ def main():
     for p in glob.glob(os.path.join(DESK, "**", "state.json"), recursive=True):
         with open(p) as f:
             state = json.load(f)
-        if state.get("awaiting") and (not want or os.path.basename(os.path.dirname(p)) == want):
-            cards.append((os.path.dirname(p), state))
+        card = os.path.dirname(p)
+        # a bare /approve means this session's card; an explicit id is the human's word
+        if state.get("awaiting") and (os.path.basename(card) == want if want else sessions.status(card, ev.get("session_id")) == "mine"):
+            cards.append((card, state))
     if len(cards) != 1:
-        block(f"/approve needs exactly one card awaiting approval; found {len(cards)}. Use /approve <card-id>.")
+        block(f"/approve needs exactly one awaiting card owned by this session; found {len(cards)}. Use /approve <card-id>.")
     card, state = cards[0]
     path = os.path.join(card, "approvals.json")
     try:
