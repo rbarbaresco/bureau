@@ -10,7 +10,8 @@ import os
 import re
 import sys
 
-DESK = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "desk")
+# BUREAU_DESK lets tests point at a temp desk; the agent cannot set env for a hook.
+DESK = os.environ.get("BUREAU_DESK") or os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "desk")
 
 
 def block(reason):
@@ -41,7 +42,8 @@ def main():
     approved[state["awaiting"]] = True
     with open(path, "w") as f:
         json.dump(approved, f, indent=2)
-    print(f"Human approved step '{state['awaiting']}' of {os.path.basename(card)} (recorded in approvals.json).")
+    card_id = os.path.basename(card)
+    print(f"Human approved step '{state['awaiting']}' of {card_id} (recorded in approvals.json). card={card_id}")
 
 
 if __name__ == "__main__":
