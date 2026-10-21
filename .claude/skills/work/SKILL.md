@@ -10,6 +10,7 @@ Paths below are relative to the Bureau root. Never run steps the human did not c
 
 ## 1. Resume or intake
 
+- A hook claims the card for this session when you type `/work <id>`. If it printed "Took over …" above, tell the user that line (past sessions); if it blocked, the card is held by a live session: stop.
 - Run `python3 scripts/desk.py list`. If `<ref>` matches a run: read its `state.json`, `card.md`, latest artifact; go to **Run loop** (resume rules there).
 - A `desk/<card-id>/` folder with `card.md` but no `state.json` means intake is done and no workflow was confirmed yet: go to step 3.
 - Otherwise fetch the card and write `desk/<card-id>/card.md` (title, source link, description, acceptance criteria if any, comments that matter):

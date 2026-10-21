@@ -5,7 +5,7 @@ description: Ask a Bureau persona (architect, staff-engineer, qa, or any file in
 
 # Consult a persona
 
-1. Pick the card: the one in the conversation, else the only one in `desk/` with a `state.json` that is not `done`; if unclear, ask.
+1. Pick the card: the one in the conversation (the user's `/work` ref or a card id they named); if there is none, ask. Never pick from `desk/`.
 2. Read `personas/<name>.md`. If the user wants a role that does not exist, write a short persona from their description to `desk/<card>/personas/<name>.md` and offer to promote it to `personas/`.
 3. Spawn a read-only subagent (Agent tool, general-purpose or Explore). Its prompt contains, in this order:
    the persona file; the repo rules if a worktree exists

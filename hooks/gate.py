@@ -4,7 +4,8 @@
 Denies code writes inside desk/<card>/worktrees/<repo>/ unless
 1. the card's current step may write code and every earlier gated step is approved
    (approvals.json, written only by approve.py), and
-2. the repo's rule files were loaded through rules.py and have not changed since.
+2. the repo's rule files were loaded through rules.py and have not changed since, and
+3. the card is not owned by another session (sessions.py); desk.py state commands obey the same owner check.
 Subagent calls arrive with the same payload (plus agent_id), so they are covered too.
 """
 import json
@@ -15,6 +16,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import rules
+import sessions
 
 WT = rules.WT
 ABS_WT = re.compile(r"(\S*?/desk/\S+?)/worktrees/([^/\s\"']+)")
@@ -71,7 +73,19 @@ def pr_allowed(cmd):
         PR_CMD.match(s) and not (re.match(rf"\s*{GIT}push\b", s) and FORCE.search(s)) for s in segs)
 
 
-def check(card, repo, cmd=None):
+def owner(card, session):
+    """A card with a session log belongs to the session of its last claim; the first call of a resumed owner is logged."""
+    st = sessions.status(card, session)
+    if st == "mine":
+        sessions.refresh(card, session)
+    elif st != "none":
+        e, name = sessions.last(card), os.path.basename(card)
+        deny(f"Card {name} is held by session {e['session']} (pid {e['pid']}); close it first." if st == "held"
+             else f"Card {name} has no live owner session. Run /work {name} to take over.")
+
+
+def check(card, repo, session, cmd=None):
+    owner(card, session)
     state = load(os.path.join(card, "state.json"))
     steps, current = state.get("steps", []), state.get("current")
     ids = [s["id"] for s in steps]
@@ -99,18 +113,31 @@ def check(card, repo, cmd=None):
 
 
 DESK = re.compile(  # bare words and single-quoted text only: nothing for bash to expand, split or comment out
-    r"[ \t]*python3?[ \t]+(?P<script>[\w./][\w./-]*)[ \t]+(?:init|list|finish|advance|revise|reject|add|skip)"
+    r"[ \t]*python3?[ \t]+(?P<script>[\w./][\w./-]*)[ \t]+(?P<sub>init|list|finish|advance|revise|reject|add|skip)"
     r"(?:[ \t]+(?P<card>[\w./-]+)(?:[ \t]+(?:'[^']*'|[\w.-]+))*)?[ \t]*")
 
 
 def desk_state(cmd, cwd):
-    """One invocation of Bureau's own desk.py (by real path) on a card path outside any worktree: card state only."""
+    """One invocation of Bureau's own desk.py (by real path) on a card path outside any worktree: card state only.
+    Returns (subcommand, card dir), or None."""
     m = DESK.fullmatch(cmd)
     if not m:
-        return False
+        return None
     if os.path.realpath(os.path.join(cwd, m["script"])) != os.path.join(os.path.realpath(rules.BUREAU), "scripts", "desk.py"):
-        return False
-    return not WT.match(os.path.realpath(os.path.join(cwd, m["card"] or "")) + "/")
+        return None
+    card = os.path.realpath(os.path.join(cwd, m["card"] or ""))
+    return None if WT.match(card + "/") else (m["sub"], card)
+
+
+NEW = re.compile(r"python3?\s+\S*scripts/(?:workflow\.py\s+start\s+\S+|desk\.py\s+init)\s+(\S*desk/[\w.-]+)")
+
+
+def claim_new(cmd, cwd, session):
+    """The session that creates a card (workflow.py start / desk.py init) owns it."""
+    m = NEW.search(cmd)
+    card = m and os.path.realpath(os.path.join(cwd, m[1]))
+    if card and sessions.last(card) is None:
+        sessions.append(card, "claim", session, sessions.my_pid(), why="new")
 
 
 def read_only(cmd, cwd=""):
@@ -136,22 +163,29 @@ def bash_targets(cmd, cwd):
 
 def main():
     ev = json.load(sys.stdin)
+    session = ev.get("session_id")
     tool, inp = ev.get("tool_name"), ev.get("tool_input", {})
     if tool in ("Edit", "Write", "NotebookEdit"):
         path = os.path.abspath(inp.get("file_path") or inp.get("notebook_path") or "")
         if path.endswith("/approvals.json") and "/desk/" in path:
             deny("approvals.json is written only by the /approve hook.")
+        if path.endswith("/sessions.jsonl") and "/desk/" in path:
+            deny("sessions.jsonl is written only by the session hooks.")
         m = WT.match(path)
         if m:
-            check(m["card"], m["repo"])
+            check(m["card"], m["repo"], session)
     elif tool == "Bash":
-        cmd = inp.get("command", "")
-        if read_only(cmd, ev.get("cwd", "")):
+        cmd, cwd = inp.get("command", ""), ev.get("cwd", "")
+        claim_new(cmd, cwd, session)
+        state_cmd = desk_state(cmd, cwd)
+        if state_cmd and state_cmd[0] not in ("list", "init"):
+            owner(state_cmd[1], session)
+        if read_only(cmd, cwd):
             return
-        if "approvals.json" in cmd:
-            deny("approvals.json is written only by the /approve hook.")
-        for card, repo in sorted(bash_targets(cmd, ev.get("cwd", ""))):
-            check(card, repo, cmd)
+        if "approvals.json" in cmd or "sessions.jsonl" in cmd:
+            deny("approvals.json is written only by the /approve hook; sessions.jsonl only by the session hooks.")
+        for card, repo in sorted(bash_targets(cmd, cwd)):
+            check(card, repo, session, cmd)
 
 
 if __name__ == "__main__":
