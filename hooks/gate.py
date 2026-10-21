@@ -129,15 +129,28 @@ def desk_state(cmd, cwd):
     return None if WT.match(card + "/") else (m["sub"], card)
 
 
-NEW = re.compile(r"python3?\s+\S*scripts/(?:workflow\.py\s+start\s+\S+|desk\.py\s+init)\s+(\S*desk/[\w.-]+)")
+NEW = re.compile(  # the whole command, bare words and single-quoted text only: a mention in echo/grep/git is not a start
+    r"[ \t]*python3?[ \t]+(?P<script>[\w./][\w./-]*)[ \t]+(?:start[ \t]+[\w./-]+|init)[ \t]+(?P<card>[\w./-]+)"
+    r"(?:[ \t]+(?:'[^']*'|[\w.-]+))*[ \t]*")
+CARD_REF = re.compile(r"\S*?/?desk/[\w.-]+")
 
 
 def claim_new(cmd, cwd, session):
-    """The session that creates a card (workflow.py start / desk.py init) owns it."""
-    m = NEW.search(cmd)
-    card = m and os.path.realpath(os.path.join(cwd, m[1]))
-    if card and sessions.last(card) is None:
-        sessions.append(card, "claim", session, sessions.my_pid(), why="new")
+    """The session that creates a card (Bureau's own workflow.py start / desk.py init, no state.json yet) owns it."""
+    m = NEW.fullmatch(cmd)
+    if not m:
+        return
+    script = os.path.realpath(os.path.join(cwd, m["script"]))
+    card = os.path.realpath(os.path.join(cwd, m["card"]))
+    scripts = os.path.join(os.path.realpath(rules.BUREAU), "scripts")
+    if script in (os.path.join(scripts, "workflow.py"), os.path.join(scripts, "desk.py")) \
+            and "/desk/" in card and not os.path.exists(os.path.join(card, "state.json")) and sessions.last(card) is None:
+        sessions.claim(card, session, sessions.my_pid(), None, why="new")
+
+
+def named_cards(cmd, cwd):
+    """Card dirs a command names by path (desk/<id>, however quoted or chained)."""
+    return {os.path.realpath(os.path.join(cwd, m[0].lstrip("\"'="))) for m in CARD_REF.finditer(cmd)}
 
 
 def read_only(cmd, cwd=""):
@@ -167,6 +180,8 @@ def main():
     tool, inp = ev.get("tool_name"), ev.get("tool_input", {})
     if tool in ("Edit", "Write", "NotebookEdit"):
         path = os.path.abspath(inp.get("file_path") or inp.get("notebook_path") or "")
+        if card_root(os.path.dirname(path)):
+            owner(card_root(os.path.dirname(path)), session)
         if path.endswith("/approvals.json") and "/desk/" in path:
             deny("approvals.json is written only by the /approve hook.")
         if path.endswith("/sessions.jsonl") and "/desk/" in path:
@@ -179,9 +194,12 @@ def main():
         claim_new(cmd, cwd, session)
         state_cmd = desk_state(cmd, cwd)
         if state_cmd and state_cmd[0] not in ("list", "init"):
-            owner(state_cmd[1], session)
+            for card in sorted({state_cmd[1]} | named_cards(cmd, cwd)):  # "." and desk/<id>/sub both mean a card
+                owner(card, session)
         if read_only(cmd, cwd):
             return
+        for card in sorted(named_cards(cmd, cwd)):  # any other command naming a card (sed -i state.json, && chains, quotes)
+            owner(card, session)
         if "approvals.json" in cmd or "sessions.jsonl" in cmd:
             deny("approvals.json is written only by the /approve hook; sessions.jsonl only by the session hooks.")
         for card, repo in sorted(bash_targets(cmd, cwd)):

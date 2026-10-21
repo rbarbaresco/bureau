@@ -43,7 +43,7 @@ class SessionsTest(unittest.TestCase):
         sessions.append(card or self.card, "claim", session, pid, why="new")
 
     def hook(self, script, payload, pid=None):
-        env = {**os.environ, "BUREAU_DESK": self.desk, "BUREAU_CLAUDE_PID": str(pid or 1)}
+        env = {**os.environ, "BUREAU_DESK": self.desk, "BUREAU_CLAUDE_PID": str(1 if pid is None else pid)}
         return subprocess.run([sys.executable, os.path.join(HOOKS, script)], input=json.dumps(payload),
                               capture_output=True, text=True, env=env).stdout
 
@@ -130,6 +130,7 @@ class SessionsTest(unittest.TestCase):
     def test_work_resolves_repo_number_ref(self):
         card = os.path.join(self.desk, "bureau-17")
         os.makedirs(card)
+        open(os.path.join(card, "card.md"), "w").close()
         out = self.hook("owner.py", {"prompt": "/work rbarbaresco/bureau#17", "session_id": "s1"}, self.claude())
         self.assertEqual(sessions.status(card, "s1"), "mine")
         self.assertNotIn("block", out)
@@ -157,6 +158,70 @@ class SessionsTest(unittest.TestCase):
         self.assertIn("card=ABC-1", out)  # explicit id stays authoritative
         out = self.hook("approve.py", {"prompt": "/approve", "session_id": "s3"})
         self.assertIn("block", out)
+
+    def test_non_owner_cannot_mutate_card_by_any_syntax(self):
+        self.own("s1", self.claude())
+        d, c = f"python3 {ROOT}/scripts/desk.py", self.card
+        for cmd in (f"{d} finish {c} && true", f'{d} finish "{c}"', f"{d} finish {c}/sub",
+                    f"cd {c} && {d} finish .", f"sed -i s/a/b/ {c}/state.json", f"echo x > {c}/plan.md"):
+            self.assertIn("held by session s1", self.gate("s2", command=cmd) or "ALLOWED", cmd)
+        self.assertIn("held by session s1", self.gate("s2", "Write", file_path=f"{c}/state.json"))
+        self.assertIsNone(self.gate("s1", "Write", file_path=f"{c}/state.json"))
+        self.assertIsNone(self.gate("s2", command=f"ls {c} && cat {c}/state.json"))
+
+    def test_mention_does_not_claim(self):
+        legacy = os.path.join(self.desk, "OLD-1")
+        os.makedirs(legacy)
+        open(os.path.join(legacy, "state.json"), "w").close()
+        d = f"python3 {ROOT}/scripts"
+        self.gate("s2", command=f"echo see {d}/desk.py init {legacy}")
+        self.gate("s2", command=f"echo {d}/workflow.py start task {self.desk}/NEWX")
+        self.gate("s2", command=f"{d}/desk.py init {legacy}")  # not python3 first
+        self.gate("s2", command=f"python3 {ROOT}/scripts/desk.py init {legacy} '[]'")  # has a state.json already
+        self.assertEqual(sessions.events(legacy), [])
+        self.assertFalse(os.path.exists(os.path.join(self.desk, "NEWX")))
+
+    def test_work_ref_cannot_leave_desk(self):
+        victim = os.path.join(self.tmp, "victim")
+        os.makedirs(victim)
+        open(os.path.join(victim, "card.md"), "w").close()
+        for ref in ("../victim", victim, ".", "..", "ABC-1/worktrees"):
+            self.hook("owner.py", {"prompt": f"/work {ref}", "session_id": "s1"}, 1)
+        self.assertEqual(sessions.events(victim), [])
+        self.assertEqual(sessions.events(self.desk), [])
+        self.assertFalse(os.path.exists(os.path.join(self.card, "worktrees")))
+
+    def test_bad_log_lines_are_skipped(self):
+        pid = self.claude()
+        self.own("s1", pid)
+        with open(os.path.join(self.card, "sessions.jsonl"), "a") as f:
+            f.write("{torn\n\n[1]\n")
+        self.assertEqual(sessions.status(self.card, "s2"), "held")
+        self.assertIn("held by session s1", self.desk_cmd("finish", "s2"))
+
+    def test_empty_log_does_not_crash_hooks(self):
+        open(os.path.join(self.card, "sessions.jsonl"), "w").close()
+        run = subprocess.run([sys.executable, os.path.join(HOOKS, "session_end.py")], input='{"session_id": "s1"}',
+                             capture_output=True, text=True, env={**os.environ, "BUREAU_DESK": self.desk})
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertIsNone(self.desk_cmd("finish", "s2"))
+
+    def test_work_warns_when_pid_unknown(self):
+        out = self.hook("owner.py", {"prompt": "/work ABC-1", "session_id": "s1"}, 0)
+        self.assertIn("will not lock", out)
+
+    def test_work_by_owner_refreshes_pid(self):
+        self.own("s1", 2 ** 22 + 1)
+        pid = self.claude()
+        self.hook("owner.py", {"prompt": "/work ABC-1", "session_id": "s1"}, pid)
+        self.assertEqual(sessions.last(self.card)["pid"], pid)
+        self.assertEqual(sessions.status(self.card, "s2"), "held")
+
+    def test_claim_loses_when_log_moved(self):
+        seen = sessions.last(self.card)
+        self.assertTrue(sessions.claim(self.card, "s1", 1, seen))
+        self.assertFalse(sessions.claim(self.card, "s2", 1, seen))
+        self.assertEqual(sessions.last(self.card)["session"], "s1")
 
 
 if __name__ == "__main__":

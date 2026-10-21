@@ -20,8 +20,10 @@ def block(reason):
 def resolve(ref):
     """Card dir of an existing card: its id, or owner/repo#n -> repo-n. Anything else is a new card, claimed at init."""
     m = re.fullmatch(r"(?:[\w.-]+/)?([\w.-]+)#(\d+)", ref)
-    card = os.path.join(sessions.DESK, f"{m[1]}-{m[2]}" if m else ref)
-    return card if os.path.isdir(card) else None
+    name = f"{m[1]}-{m[2]}" if m else ref
+    card = os.path.join(sessions.DESK, name)
+    ok = re.fullmatch(r"[\w.-]+", name) and name not in (".", "..")
+    return card if ok and any(os.path.isfile(os.path.join(card, f)) for f in ("state.json", "card.md")) else None
 
 
 def main():
@@ -33,12 +35,18 @@ def main():
     sid, e = ev.get("session_id"), sessions.last(card)
     st = sessions.status(card, sid)
     if st == "mine":
+        sessions.refresh(card, sid)
         return
+    held = f"{os.path.basename(card)} is held by live session %s (pid %s, since %s). Close that session first; there is no override."
     if st == "held":
-        block(f"{os.path.basename(card)} is held by live session {e['session']} (pid {e['pid']}, since {e['at']}). "
-              "Close that session first; there is no override.")
+        block(held % (e["session"], e["pid"], e["at"]))
     why = "new" if e is None else "owner-dead" if e["event"] == "claim" else "owner-ended"
-    sessions.append(card, "claim", sid, sessions.my_pid(), why=why, prev=e and e["session"])
+    pid = sessions.my_pid()
+    if not sessions.claim(card, sid, pid, e, why=why, prev=e and e["session"]):  # lost a race for the same free card
+        e = sessions.last(card)
+        block(held % (e["session"], e["pid"], e["at"]))
+    if not pid:
+        print("Warning: could not find the claude process, so this card will not lock against other sessions.")
     if e:
         past = {x["session"] for x in sessions.events(card)} - {sid}
         print(f"Took over {os.path.basename(card)} from session {e['session']} "

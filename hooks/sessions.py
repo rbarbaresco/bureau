@@ -4,6 +4,7 @@ One JSON line per event: {"event": "claim"|"end", "session", "pid", "at", ...}.
 The owner is the session of the last event if that is a `claim`; an `end` leaves the card free.
 The pid is the `claude` process above the hook: a claim whose pid is gone (crash) is free too.
 """
+import fcntl
 import glob
 import json
 import os
@@ -40,11 +41,19 @@ def my_pid():
 
 
 def events(card):
+    out = []
     try:
         with open(os.path.join(card, "sessions.jsonl")) as f:
-            return [json.loads(line) for line in f if line.strip()]
+            for line in f:
+                try:
+                    e = json.loads(line)
+                except json.JSONDecodeError:  # a torn write must not turn every hook into a crash (fail-open)
+                    continue
+                if isinstance(e, dict) and "event" in e:
+                    out.append(e)
     except FileNotFoundError:
-        return []
+        pass
+    return out
 
 
 def last(card):
@@ -57,6 +66,17 @@ def append(card, event, session, pid, **extra):
     rec = {"event": event, "session": session, "pid": pid, "at": time.strftime("%Y-%m-%dT%H:%M:%S%z"), **extra}
     with open(os.path.join(card, "sessions.jsonl"), "a") as f:
         f.write(json.dumps(rec) + "\n")
+
+
+def claim(card, session, pid, seen, **extra):
+    """Claim unless the log moved since `seen` (another session got there first). True if the claim was made."""
+    os.makedirs(card, exist_ok=True)
+    with open(os.path.join(card, "sessions.lock"), "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        if last(card) != seen:
+            return False
+        append(card, "claim", session, pid, **extra)
+        return True
 
 
 def status(card, session):
