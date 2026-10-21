@@ -227,6 +227,7 @@ Anything personal (a persona with your company's conventions, a private workflow
 | `.claude/skills/work` | `/work`: intake, overview, workflow choice, the run loop |
 | `.claude/skills/approve` | `/approve`: continues after the hook has recorded your approval |
 | `.claude/skills/consult` | Ask a persona a question about the current card |
+| `.claude/skills/issue` | Draft a GitHub issue in the repo's house style, file it after you approve |
 | `.claude/settings.json` | Registers the two hooks |
 | `hooks/gate.py` | Denies code writes until the gate and the rules are satisfied |
 | `hooks/rules.py` | Collects and acknowledges the repo's instruction files |
