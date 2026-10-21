@@ -235,6 +235,7 @@ Anything personal (a persona with your company's conventions, a private workflow
 | `scripts/desk.py` | Card state and transitions: `init finish advance revise reject add skip list` |
 | `scripts/workflow.py` | Parses workflows: `list show start` |
 | `scripts/worktree.py` | Creates a card's worktree from `repos.yaml` |
+| `scripts/ui.py` | Read-only card viewer on `http://127.0.0.1:8765` (`--port` to change). It reads the files in `desk/`; their format is the contract |
 | `workflows/`, `personas/` | The shipped workflows and personas, yours to extend |
 | `AGENTS.md` | Base rules loaded for every card |
 | `repos.yaml.sample` | Copy to `repos.yaml` |
