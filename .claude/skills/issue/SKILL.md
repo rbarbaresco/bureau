@@ -8,7 +8,7 @@ description: Draft, and after approval file, a GitHub issue for Bureau or anothe
 An issue is a work artifact: one reader who has the context, picking it up later. Write the summary, not the case.
 
 1. **Repo.** The one the user names, else the current repo (`gh repo view --json nameWithOwner`). If the issue is about code, read the files it points at so the problem cites real paths (`file:line`), not "the permission system".
-2. **House style.** Read the two or three most recent issues (`gh issue list --state all --limit 3`, then `gh issue view <n> --json body,labels`) and match their length, headings and labels. In this repo that is a short body: **Problem**, then one of **Expected** (a change is clear), **To verify** (a suspicion), or **Question** (a decision is needed). One label from `gh label list`. Do not copy a long issue as the template; the short ones are the target.
+2. **Template.** Propose this one; do not go looking for another. Body: **Problem**, then one of **Expected** (a change is clear), **To verify** (a suspicion), or **Question** (a decision is needed). One label from `gh label list` (`bug`, `enhancement`, `question`, `documentation`). Keep it short.
 3. **Write the draft.**
    - Problem: what happens, where, and why it matters, in a few sentences. Quote exact error text.
    - Expected, To verify or Question: the outcome wanted, not a design. If the user has a design, give it one line and name the open choice.
