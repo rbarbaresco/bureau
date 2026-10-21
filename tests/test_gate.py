@@ -99,19 +99,54 @@ class GateTest(unittest.TestCase):
         self.assertIsNone(self.run_gate("Bash", command="grep -rn foo worktrees/clone 2>&1"))
         self.assertIsNotNone(self.run_gate("Bash", command="cat a >/dev/null; touch worktrees/clone/x"))
 
-    def test_done_card_allows_only_pr_commands(self):
+    def done_card(self):
+        """A done card with every gate approved and a clean, real git worktree."""
         self.state({"current": "done", "steps": STEPS + [{"id": "pr", "gate": "approve"}]})
-        sh = lambda c: self.run_gate("Bash", command=f"cd {self.wt} && {c}")
+        self.approve("plan", "build", "pr")
+        os.remove(os.path.join(self.wt, ".git"))
+        self.git("init", "-q")
+        self.git("add", "-A")
+        self.git("commit", "-qm", "init")
+        return lambda c: self.run_gate("Bash", command=f"cd {self.wt} && {c}")
+
+    def git(self, *args):
+        subprocess.run(["git", "-C", self.wt, "-c", "user.name=t", "-c", "user.email=t@t", *args], check=True)
+
+    def test_done_card_allows_only_pr_commands(self):
+        sh = self.done_card()
         self.approve("plan", "build")
         self.assertIsNotNone(sh("git commit -m x"))  # last gate not approved yet
         self.approve("plan", "build", "pr")
-        for ok in ("git add -A && git commit -m x && git push -u origin b", "gh pr create --draft --title t",
-                   "git push origin HEAD"):
+        for ok in ("git add -A && git commit -m x", "gh pr create --draft --title t", "git push -u origin b"):
             self.assertIsNone(sh(ok), ok)
         for bad in ("git push --force", "git push -f", "git push -fu origin b", "git push origin +b",
                     "gh pr create --title t", "gh pr merge", "touch x", "git commit -m x; rm -rf ."):
             self.assertIn("Card is done", sh(bad), bad)
         self.assertIn("Card is done", self.edit())
+
+    def test_done_card_quoted_text(self):
+        sh = self.done_card()
+        self.assertIsNone(sh('git commit -m "fix" -m "Co-Authored-By: Claude <noreply@anthropic.com>"'))
+        self.assertIsNone(sh("git commit -m 'a > b $(x)'"))
+        self.assertIsNotNone(sh('git commit -m "$(cmd)"'))
+        self.assertIsNotNone(sh('git commit -m "`cmd`"'))
+        self.assertIsNotNone(sh("git commit -m x > f"))
+        self.assertIsNotNone(sh("echo x > f"))
+
+    def test_read_only_quoted_text(self):
+        self.assertIsNone(self.run_gate("Bash", command=f"rg 'a>b' \"<c>\" {self.wt}"))
+        self.assertIsNotNone(self.run_gate("Bash", command=f"echo x > {self.wt}/f"))
+        self.assertIsNotNone(self.run_gate("Bash", command=f'echo "$(touch {self.wt}/f)"'))
+
+    def test_done_card_push_needs_clean_worktree(self):
+        sh = self.done_card()
+        self.assertIsNone(sh("git push origin b"))
+        write(os.path.join(self.wt, "new.py"), "x\n")
+        for c in ("git push origin b", "gh pr create --draft --title t", "git add -A && git push origin b"):
+            self.assertIn("commit first", sh(c), c)
+        self.git("add", "-A")
+        self.git("commit", "-qm", "y")
+        self.assertIsNone(sh("git push origin b"))
 
     def test_git_grep_allowed_on_read_only_step(self):
         self.state({"current": "plan", "steps": STEPS})
