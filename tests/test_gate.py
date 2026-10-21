@@ -99,6 +99,24 @@ class GateTest(unittest.TestCase):
         self.assertIsNone(self.run_gate("Bash", command="grep -rn foo worktrees/clone 2>&1"))
         self.assertIsNotNone(self.run_gate("Bash", command="cat a >/dev/null; touch worktrees/clone/x"))
 
+    def test_done_card_allows_only_pr_commands(self):
+        self.state({"current": "done", "steps": STEPS + [{"id": "pr", "gate": "approve"}]})
+        sh = lambda c: self.run_gate("Bash", command=f"cd {self.wt} && {c}")
+        self.approve("plan", "build")
+        self.assertIsNotNone(sh("git commit -m x"))  # last gate not approved yet
+        self.approve("plan", "build", "pr")
+        for ok in ("git add -A && git commit -m x && git push -u origin b", "gh pr create --draft --title t",
+                   "git push origin HEAD"):
+            self.assertIsNone(sh(ok), ok)
+        for bad in ("git push --force", "git push -f", "git push -fu origin b", "git push origin +b",
+                    "gh pr create --title t", "gh pr merge", "touch x", "git commit -m x; rm -rf ."):
+            self.assertIn("Card is done", sh(bad), bad)
+        self.assertIn("Card is done", self.edit())
+
+    def test_git_grep_allowed_on_read_only_step(self):
+        self.state({"current": "plan", "steps": STEPS})
+        self.assertIsNone(self.run_gate("Bash", command=f"git -C {self.wt} grep foo"))
+
     def test_rules_loader_runs_before_ack(self):
         cmd = f"python3 {ROOT}/hooks/rules.py {self.wt}"
         self.assertIsNone(self.run_gate("Bash", command=cmd))
