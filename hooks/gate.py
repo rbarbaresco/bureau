@@ -19,10 +19,13 @@ WT = rules.WT
 ABS_WT = re.compile(r"(\S*?/desk/\S+?)/worktrees/([^/\s\"']+)")
 REL_WT = re.compile(r"worktrees/([^/\s\"']+)")
 READ_ONLY = re.compile(
-    r"^\s*(ls|cat|rg|grep|head|tail|wc|pwd|cd|echo|git\s+(-C\s+\S+\s+)?(status|log|diff|show|rev-parse|ls-files))\b"
+    r"^\s*(ls|cat|rg|grep|head|tail|wc|pwd|cd|echo|git\s+(-C\s+\S+\s+)?(status|log|diff|show|grep|rev-parse|ls-files))\b"
     r"|^\s*python3?\s+\S*/hooks/rules\.py\b"  # the rules loader must run before any write is allowed
     r"|^\s*python3?\s+\S*/scripts/worktree\.py\b"  # creates the worktree itself
 )
+GIT = r"git\s+(-C\s+\S+\s+)?"
+PR_CMD = re.compile(rf"^\s*(cd|{GIT}(add|commit|push)|gh\s+pr\s+create\b.*--draft)\b")
+FORCE = re.compile(r"\s(-[a-zA-Z]*f[a-zA-Z]*|--force\S*)(\s|$)|\s\+\S")  # checked on push segments only
 UNSAFE = re.compile(r"[>`]|\$\(")  # redirects and substitutions can write from a "read-only" command
 HARMLESS_REDIRECT = re.compile(r"\d?>\s*/dev/null|\d?>&\d")
 
@@ -54,13 +57,24 @@ def card_root(path):
     return None
 
 
-def check(card, repo):
+def pr_allowed(cmd):
+    """Once the last gate is approved the card is `done`; only commit, push and the draft PR may run."""
+    segs = [s for s in re.split(r"[;|&\n]+", cmd) if s.strip()]
+    return not UNSAFE.search(cmd) and all(
+        PR_CMD.match(s) and not (re.match(rf"\s*{GIT}push\b", s) and FORCE.search(s)) for s in segs)
+
+
+def check(card, repo, cmd=None):
     state = load(os.path.join(card, "state.json"))
     steps, current = state.get("steps", []), state.get("current")
     ids = [s["id"] for s in steps]
+    approved = load(os.path.join(card, "approvals.json"))
+    if current == "done" and steps and approved.get(ids[-1]):
+        if cmd is None or not pr_allowed(cmd):
+            deny("Card is done: only git add/commit/push (no force) and gh pr create --draft are allowed.")
+        return
     if current not in ids:
         deny(f"No valid current step in {card}/state.json; start the run through /work.")
-    approved = load(os.path.join(card, "approvals.json"))
     idx = ids.index(current)
     if not steps[idx].get("writes_code"):
         deny(f"Step '{current}' does not write code. Move to a build step first.")
@@ -108,7 +122,7 @@ def main():
         if "approvals.json" in cmd:
             deny("approvals.json is written only by the /approve hook.")
         for card, repo in sorted(bash_targets(cmd, ev.get("cwd", ""))):
-            check(card, repo)
+            check(card, repo, cmd)
 
 
 if __name__ == "__main__":
