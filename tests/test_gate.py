@@ -48,8 +48,8 @@ class GateTest(unittest.TestCase):
         subprocess.run([sys.executable, os.path.join(ROOT, "hooks", "rules.py"), self.wt],
                        check=True, capture_output=True)
 
-    def run_gate(self, tool, **inp):
-        payload = {"tool_name": tool, "tool_input": inp, "cwd": self.card}
+    def run_gate(self, tool, cwd=None, **inp):
+        payload = {"tool_name": tool, "tool_input": inp, "cwd": cwd or self.card}
         out = subprocess.run([sys.executable, GATE], input=json.dumps(payload),
                              capture_output=True, text=True, check=True).stdout
         return json.loads(out)["hookSpecificOutput"]["permissionDecisionReason"] if out else None
@@ -151,6 +151,33 @@ class GateTest(unittest.TestCase):
     def test_git_grep_allowed_on_read_only_step(self):
         self.state({"current": "plan", "steps": STEPS})
         self.assertIsNone(self.run_gate("Bash", command=f"git -C {self.wt} grep foo"))
+
+    def test_desk_state_commands_allowed_from_worktree_cwd(self):
+        self.state({"current": "plan", "steps": STEPS})
+        desk = f"python3 {ROOT}/scripts/desk.py"
+        run = lambda c: self.run_gate("Bash", cwd=self.wt, command=c)
+        self.assertIsNone(run(f"{desk} finish {self.card}"))
+        self.assertIsNone(run(f"{desk} reject {self.card} plan 'redo'"))
+        self.assertIsNotNone(run(f"{desk} finish {self.card}; touch {self.wt}/x"))
+        self.assertIsNotNone(run(f"{desk} finish {self.card} > {self.wt}/x"))
+        self.assertIsNotNone(run(f"{desk} init {self.wt}/sub '[]'"))  # argument points into a worktree
+        self.assertIsNone(run(f"{desk} reject {self.card} plan 'redo; see worktrees/x & more'"))  # free text
+        self.assertIsNotNone(run(f"{desk} init . '[]'"))  # "." is the worktree
+        self.assertIsNotNone(run(f"{desk} finish $PWD"))
+        self.assertIsNotNone(run(f"{desk} finish {self.card}\ntouch {self.wt}/x"))  # newline = second command
+        self.assertIsNotNone(run(f"{desk} finish c# ; touch {self.wt}/x"))  # mid-word # is not a comment
+        self.assertIsNotNone(run(f"{desk} init {{{self.wt}/x,y}} '[]'"))  # brace expansion
+        self.assertIsNotNone(run(f"{desk} finish {self.card[:-1]}?"))  # glob
+        self.assertIsNone(self.run_gate("Bash", cwd=ROOT, command=f"python3 scripts/desk.py finish {self.card}"))
+        self.assertIsNotNone(run(f'{desk} reject {self.card} plan "$(touch {self.wt}/x)"'))
+        self.assertIsNotNone(run(f"{desk} revise {self.card} `touch {self.wt}/x`"))
+        self.assertIsNotNone(run(f"{desk} $UNSET init {self.wt}/sub '[]'"))  # shifts the card argument
+        self.assertIsNone(run(f"{desk} revise {self.card} 'line1\nline2'"))  # newline inside quotes is inert
+        self.assertIsNotNone(run(f"{desk} list /c #'\ntouch {self.wt}/x #'"))  # comment hides a quote pair
+        self.assertIsNotNone(run(f"python3 -Wx/../scripts/desk.py list {self.card}"))  # python option, not the script
+        other = os.path.join(self.tmp, "other", "scripts", "desk.py")  # unrelated project's desk.py
+        write(other, "")
+        self.assertIsNotNone(run(f"python3 {other} finish {self.card}"))
 
     def test_rules_loader_runs_before_ack(self):
         cmd = f"python3 {ROOT}/hooks/rules.py {self.wt}"
