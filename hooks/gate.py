@@ -10,6 +10,7 @@ Subagent calls arrive with the same payload (plus agent_id), so they are covered
 import json
 import os
 import re
+import subprocess
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -27,7 +28,13 @@ GIT = r"git\s+(-C\s+\S+\s+)?"
 PR_CMD = re.compile(rf"^\s*(cd|{GIT}(add|commit|push)|gh\s+pr\s+create\b.*--draft)\b")
 FORCE = re.compile(r"\s(-[a-zA-Z]*f[a-zA-Z]*|--force\S*)(\s|$)|\s\+\S")  # checked on push segments only
 UNSAFE = re.compile(r"[>`]|\$\(")  # redirects and substitutions can write from a "read-only" command
+QUOTED = re.compile(r"""'[^']*'|"(?:[^"\\]|\\.)*\"""")
 HARMLESS_REDIRECT = re.compile(r"\d?>\s*/dev/null|\d?>&\d")
+
+
+def plain(cmd):
+    """Drop what is inert in quotes: single-quoted text, and <> in double quotes ($( and backticks still run there)."""
+    return QUOTED.sub(lambda m: "''" if m[0][0] == "'" else re.sub(r"[<>]", "", m[0]), cmd)
 
 
 def deny(reason):
@@ -60,7 +67,7 @@ def card_root(path):
 def pr_allowed(cmd):
     """Once the last gate is approved the card is `done`; only commit, push and the draft PR may run."""
     segs = [s for s in re.split(r"[;|&\n]+", cmd) if s.strip()]
-    return not UNSAFE.search(cmd) and all(
+    return not UNSAFE.search(plain(cmd)) and all(
         PR_CMD.match(s) and not (re.match(rf"\s*{GIT}push\b", s) and FORCE.search(s)) for s in segs)
 
 
@@ -72,6 +79,11 @@ def check(card, repo, cmd=None):
     if current == "done" and steps and approved.get(ids[-1]):
         if cmd is None or not pr_allowed(cmd):
             deny("Card is done: only git add/commit/push (no force) and gh pr create --draft are allowed.")
+        if re.search(rf"(^|[;|&\n])\s*({GIT}push|gh\s+pr\s+create)\b", cmd):
+            st = subprocess.run(["git", "-C", os.path.join(card, "worktrees", repo), "status", "--porcelain"],
+                                capture_output=True, text=True)
+            if st.returncode or st.stdout.strip():  # a failed status counts as dirty
+                deny("Uncommitted changes in the worktree: commit first, then push or open the PR in a separate call.")
         return
     if current not in ids:
         deny(f"No valid current step in {card}/state.json; start the run through /work.")
@@ -89,7 +101,7 @@ def check(card, repo, cmd=None):
 def read_only(cmd):
     cmd = HARMLESS_REDIRECT.sub("", cmd)
     segs = [s for s in re.split(r"[;|&\n]+", cmd) if s.strip()]
-    return not UNSAFE.search(cmd) and all(READ_ONLY.match(s) for s in segs)
+    return not UNSAFE.search(plain(cmd)) and all(READ_ONLY.match(s) for s in segs)
 
 
 def bash_targets(cmd, cwd):
