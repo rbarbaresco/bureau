@@ -62,6 +62,7 @@ Bureau runs on Linux and macOS. Windows is untested.
      shop-api:
        path: ~/code/shop-api
        base: develop
+       test: npm test            # optional: the command a read-only step (review) may run in the worktree
    ```
 
    `repos.yaml` is gitignored, because it holds paths from your machine. A repo can be listed under any name, and a card can use several.
@@ -164,7 +165,7 @@ If any of those files change, the hash no longer matches and the rules must be l
 
 - Bash is gated with a read-only allowlist (`ls`, `cat`, `rg`, `grep`, `git status|log|diff`…). A deliberate evasion, such as a script that writes files, can slip through.
 - The agent can edit `state.json`, for example to fake the current step. This protects against skipped steps and forgetfulness, not against a hostile agent.
-- On steps that do not write code, any Bash command outside the allowlist that touches the worktree is denied, including running tests.
+- On steps that do not write code, any Bash command outside the allowlist that touches the worktree is denied, except the repo's `test:` command from `repos.yaml`. That command is not sandboxed: tests can still write files in the worktree.
 
 ## Customizing
 
@@ -252,7 +253,7 @@ Anything personal (a persona with your company's conventions, a private workflow
 | "Step 'x' does not write code" | The run is not on a build step yet; finish the earlier steps |
 | "unknown repo 'x'" | Add it to `repos.yaml` |
 | `/approve` seems to do nothing | Check `/hooks`. The hooks load from `.claude/settings.json` only when Claude Code is started inside the Bureau folder |
-| A read-only command is denied | Redirects other than to `/dev/null` and pipes into non-allowlisted commands count as writes. Simplify the command, or approve the build step first |
+| A read-only command is denied | Redirects other than to `/dev/null` and pipes into non-allowlisted commands count as writes. Simplify the command, declare the repo's `test:` in `repos.yaml` to run tests, or approve the build step first |
 | Jira card cannot be read | Check the `acli` login, or paste the story text |
 
 ## Tests

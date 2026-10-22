@@ -4,6 +4,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "hooks"))
@@ -82,6 +83,22 @@ class GateTest(unittest.TestCase):
         self.approve("plan")
         self.ack()
         self.assertIn("does not write code", self.edit())
+
+    def test_declared_test_command_allowed_on_non_build_step(self):
+        self.state({"current": "plan", "steps": STEPS})
+        repos = os.path.join(self.tmp, "repos.yaml")
+        write(repos, "repos:\n  clone:\n    path: x\n    test: python3 -I -m unittest\n  other:\n    path: y\n")
+        run = f"cd {self.wt} && python3 -I -m unittest discover -s tests 2>&1 | tail -3"
+        self.assertIn("does not write code", self.run_gate("Bash", command=run))  # no repos file: today's behaviour
+        with mock.patch.dict(os.environ, {"BUREAU_REPOS": repos}):
+            self.assertIsNone(self.run_gate("Bash", command=run))
+            self.assertIsNone(self.run_gate("Bash", command="python3 -I -m unittest", cwd=self.wt))
+            for bad in (f"{run} && rm -rf x", f"{run} > out.txt", f"cd {self.wt} && python3 -I -m unittest $(id)",
+                        f"cd {self.wt} && python3 -I -m unittestx", f"cd {self.wt} && python3 other.py"):
+                self.assertIn("does not write code", self.run_gate("Bash", command=bad), bad)
+            self.assertIn("does not write code", self.run_gate("Edit", file_path=os.path.join(self.wt, "app.py")))
+            write(repos, "repos:\n  clone:\n    path: x\n")  # repo without a test: key
+            self.assertIn("does not write code", self.run_gate("Bash", command=run))
 
     def test_path_outside_worktree_allowed(self):
         self.assertIsNone(self.run_gate("Write", file_path=os.path.join(self.card, "plan.md")))
