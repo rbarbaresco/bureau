@@ -13,6 +13,17 @@ bureau: [creates a worktree, writes the failing test and the fix, stops]  → /a
 bureau: [reviews the diff with a read-only QA persona, drafts the PR, stops]  → /approve
 ```
 
+What you get:
+
+| Tool | Use it to |
+|---|---|
+| `/work <ref>` | Start or resume a card and run its workflow |
+| `/approve` | Pass a gate (only you can; the agent cannot) |
+| `/consult` (in plain words: "ask the architect…") | Get a persona's advice on the current card |
+| `/issue` (in plain words: "write an issue for this") | Draft a GitHub issue and file it after you approve |
+| `scripts/ui.py` | Watch your cards in a read-only browser page |
+| Hooks | Refuse code edits before the gate, the repo rules and card ownership are in place |
+
 ## Contents
 
 - [Requirements](#requirements)
@@ -36,7 +47,7 @@ bureau: [reviews the diff with a read-only QA persona, drafts the PR, stops]  �
 | `gh` (GitHub CLI), logged in | Reading GitHub issues and PRs, opening draft PRs |
 | `acli` (Atlassian CLI), logged in | Reading Jira work items. Optional, and not yet exercised (see [limits](#status-and-limits)) |
 
-Bureau runs on Linux. Card ownership (see [How it works](#how-it-works)) finds the `claude` process through `/proc` (`hooks/sessions.py`), so on macOS that lock does not work; the rest is untested there. Windows is untested.
+Bureau runs on Linux. Card ownership (see [How it works](#how-it-works)) finds the `claude` process through `/proc` (`hooks/sessions.py`), so on macOS that lock does not work (`/work` prints a warning); the rest is untested there. Windows is untested.
 
 ## First steps
 
@@ -280,6 +291,7 @@ Anything personal (a persona with your company's conventions, a private workflow
 | "Gate 'plan' is not approved" | Type `/approve` (or `/approve <card-id>` if more than one card is waiting) |
 | "/approve needs exactly one awaiting card owned by this session; found N. Use /approve <card-id>." | Zero or several cards are waiting for this session: add the card id |
 | "Card x is held by session …" or "…is held by live session … there is no override" | Another live session owns the card. Close it, then run `/work <card-id>` |
+| "Card x has no live owner session. Run /work x to take over." | The owner ended or died. Run `/work <card-id>` in this session |
 | "Step 'x' does not write code" | The run is not on a build step yet; finish the earlier steps. Non-build steps can still run the read-only commands in the "A read-only command is denied" row |
 | "unknown repo 'x'" | Add it to `repos.yaml` |
 | `/approve` seems to do nothing | Check `/hooks`. The hooks load from `.claude/settings.json` only when Claude Code is started inside the Bureau folder |
