@@ -130,7 +130,7 @@ At any point, ask in plain words: *"Ask the architect whether this belongs in th
 
 **Step.** Has a persona, a gate (`none`, `approve` or `approve+check`) and, for steps that edit code, `writes_code: true`.
 
-**Persona.** A markdown file in `personas/` describing a role: what it cares about and how it reports. `writer` personas work in your session. `read-only` personas run as subagents that cannot edit files. Shipped: `architect`, `staff-engineer`, `qa`.
+**Persona.** A markdown file in `personas/` describing a role: what it cares about and how it reports. `writer` personas work in your session. `read-only` personas run as subagents that cannot edit files. Shipped: `architect`, `staff-engineer`, `qa`, `journalist`.
 
 **Desk.** One folder per card, never committed:
 
@@ -237,6 +237,7 @@ Anything personal (a persona with your company's conventions, a private workflow
 | `scripts/workflow.py` | Parses workflows: `list show start` |
 | `scripts/worktree.py` | Creates a card's worktree from `repos.yaml` |
 | `scripts/pr.py` | Pushes the branch, opens the draft PR from `pr.md`, appends the link to it |
+| `scripts/ui.py` | Read-only card viewer on `http://127.0.0.1:8765` (`--port` to change). It reads the files in `desk/`; their format is the contract |
 | `workflows/`, `personas/` | The shipped workflows and personas, yours to extend |
 | `AGENTS.md` | Base rules loaded for every card |
 | `repos.yaml.sample` | Copy to `repos.yaml` |

@@ -24,6 +24,8 @@ writes_code: true
 
 Load the repo rules, create the worktree, write the failing test first, then the fix. Commit all work before finishing: the `pr` step cannot commit.
 Write fix.md: what changed, test output, anything deliberately left alone.
+Docs: if the change alters documented behaviour, update the README, docs and instruction files
+(`AGENTS.md`/`CLAUDE.md`) in the same change; otherwise write `Docs: none needed, <reason>` in fix.md.
 End the artifact with `## Open questions` (or "none").
 
 ## review
@@ -32,6 +34,7 @@ gate: none
 
 As a read-only subagent, review the diff against plan.md and the card: does the test prove the fix,
 what else could the change break, anything unneeded. Write review.md with findings ranked by severity.
+Check the docs line in fix.md: does the diff leave any README, doc or instruction file stale? Rank a miss as a finding.
 
 ## pr
 persona: staff-engineer
