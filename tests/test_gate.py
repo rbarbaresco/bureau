@@ -4,8 +4,12 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# commands name LINK, not ROOT: in a card worktree ROOT holds desk/<card>, which the gate owner-checks
+LINK = os.path.join(tempfile.mkdtemp(), "bureau")
+os.symlink(ROOT, LINK)
 sys.path.insert(0, os.path.join(ROOT, "hooks"))
 import rules  # noqa: E402
 import sessions  # noqa: E402
@@ -83,6 +87,24 @@ class GateTest(unittest.TestCase):
         self.ack()
         self.assertIn("does not write code", self.edit())
 
+    def test_declared_test_command_allowed_on_non_build_step(self):
+        self.state({"current": "plan", "steps": STEPS})
+        repos = os.path.join(self.tmp, "repos.yaml")
+        write(repos, "repos:\n  clone:\n    path: x\n    test: python3 -I -m unittest\n  other:\n    path: y\n")
+        run = f"cd {self.wt} && python3 -I -m unittest discover -s tests 2>&1 | tail -3"
+        self.assertIn("does not write code", self.run_gate("Bash", command=run))  # no repos file: today's behaviour
+        with mock.patch.dict(os.environ, {"BUREAU_REPOS": repos}):
+            self.assertIsNone(self.run_gate("Bash", command=run))
+            self.assertIsNone(self.run_gate("Bash", command="python3 -I -m unittest", cwd=self.wt))
+            for bad in (f"{run} && rm -rf x", f"{run} > out.txt", f"cd {self.wt} && python3 -I -m unittest $(id)",
+                        f"cd {self.wt} && python3 -I -m unittestx", f"cd {self.wt} && python3 other.py"):
+                self.assertIn("does not write code", self.run_gate("Bash", command=bad), bad)
+            self.assertIn("does not write code", self.run_gate("Edit", file_path=os.path.join(self.wt, "app.py")))
+            write(repos, "repos:\n  clone:\n    path: x\n")  # repo without a test: key
+            self.assertIn("does not write code", self.run_gate("Bash", command=run))
+            write(repos, "repos:\n  clone:\n    path: x\n    test:\n")  # empty value must not match every segment
+            self.assertIn("does not write code", self.run_gate("Bash", command=f"cd {self.wt} && rm -rf x"))
+
     def test_path_outside_worktree_allowed(self):
         self.assertIsNone(self.run_gate("Write", file_path=os.path.join(self.card, "plan.md")))
 
@@ -155,7 +177,7 @@ class GateTest(unittest.TestCase):
 
     def test_desk_state_commands_allowed_from_worktree_cwd(self):
         self.state({"current": "plan", "steps": STEPS})
-        desk = f"python3 {ROOT}/scripts/desk.py"
+        desk = f"python3 {LINK}/scripts/desk.py"
         run = lambda c: self.run_gate("Bash", cwd=self.wt, command=c)
         self.assertIsNone(run(f"{desk} finish {self.card}"))
         self.assertIsNone(run(f"{desk} reject {self.card} plan 'redo'"))
@@ -181,7 +203,7 @@ class GateTest(unittest.TestCase):
         self.assertIsNotNone(run(f"python3 {other} finish {self.card}"))
 
     def test_rules_loader_runs_before_ack(self):
-        cmd = f"python3 {ROOT}/hooks/rules.py {self.wt}"
+        cmd = f"python3 {LINK}/hooks/rules.py {self.wt}"
         self.assertIsNone(self.run_gate("Bash", command=cmd))
 
     def test_subagent_call_gated_too(self):

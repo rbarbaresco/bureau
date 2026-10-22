@@ -9,6 +9,7 @@ gate: approve
 Read card.md and the relevant files. Write understand.md in a few lines: what is asked, acceptance criteria as a checklist,
 and the proposed change (for a docs change, the draft wording). This replaces a separate plan, so the human's approval here
 is what allows any code to be written. Stop here.
+End the artifact with `## Open questions` (or "none").
 
 ## build
 persona: staff-engineer
@@ -17,6 +18,7 @@ writes_code: true
 
 Load the repo rules, create the worktree, then make the change. Test first if there is any logic. For docs, show the rendered diff.
 Write build.md: what changed, test output, deviations from understand.md and why.
+End the artifact with `## Open questions` (or "none").
 
 ## review
 persona: qa

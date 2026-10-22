@@ -9,6 +9,7 @@ Usage: desk.py init <card-dir> '<steps-json>'
        desk.py add <card-dir> <after-step-id> '<step-json>' | skip <card-dir> <step-id>
 
 finish: current step is done; a gated step then waits (`awaiting`) for the human's /approve.
+finish also prints the human's Next block (command to run, what to answer).
 advance: moves on once the awaiting step is approved (approvals.json is written only by the hook).
 A step is {"id", "gate": none|approve|approve+check, "persona"?, "writes_code"?}.
 """
@@ -103,6 +104,20 @@ def finish(card_dir):
     return s
 
 
+def next_block(card_dir, state):
+    """The human-facing Next block for the state `finish` just left."""
+    aw, cur = state.get("awaiting"), state["current"]
+    if aw:
+        return (f"Next\n  Run:     /approve {state['card']}\n"
+                f"  Or:      reply with feedback           -> redoes {aw}\n"
+                f"           \"go back to <step>\"           -> reopens an earlier step\n"
+                f"  Needed:  1. Read {os.path.join(card_dir, aw + '.md')}\n"
+                f"           2. Answer the open questions in it")
+    if cur == "done":
+        return "Next\n  Run:     none\n  Needed:  merge the draft PR (yours)"
+    return f"Next\n  Run:     none (continuing with {cur})"
+
+
 def advance(card_dir):
     s = load(card_dir)
     aw = s.get("awaiting")
@@ -189,6 +204,8 @@ if __name__ == "__main__":
     except (IndexError, KeyError):
         sys.exit(__doc__)
     try:
-        cmd()
+        out = cmd()
+        if a[0] == "finish":
+            print(next_block(a[1], out))
     except ValueError as e:
         sys.exit(f"error: {e}")

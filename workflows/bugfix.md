@@ -15,6 +15,7 @@ gate: approve
 
 Write plan.md: root cause, the smallest fix that closes it, who else calls the code being changed,
 and the test that fails before and passes after. Stop here; the human approves before any code.
+End the artifact with `## Open questions` (or "none").
 
 ## fix
 persona: staff-engineer
@@ -23,6 +24,7 @@ writes_code: true
 
 Load the repo rules, create the worktree, write the failing test first, then the fix.
 Write fix.md: what changed, test output, anything deliberately left alone.
+End the artifact with `## Open questions` (or "none").
 
 ## review
 persona: qa
