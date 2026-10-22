@@ -7,6 +7,9 @@ import tempfile
 import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# commands name LINK, not ROOT: in a card worktree ROOT holds desk/<card>, which the gate owner-checks
+LINK = os.path.join(tempfile.mkdtemp(), "bureau")
+os.symlink(ROOT, LINK)
 sys.path.insert(0, os.path.join(ROOT, "hooks"))
 import sessions  # noqa: E402
 
@@ -52,7 +55,7 @@ class SessionsTest(unittest.TestCase):
         return json.loads(out)["hookSpecificOutput"]["permissionDecisionReason"] if out else None
 
     def desk_cmd(self, sub, session, pid=None):
-        return self.gate(session, command=f"python3 {ROOT}/scripts/desk.py {sub} {self.card}", pid=pid)
+        return self.gate(session, command=f"python3 {LINK}/scripts/desk.py {sub} {self.card}", pid=pid)
 
     def test_status(self):
         self.assertEqual(sessions.status(self.card, "s1"), "none")
@@ -101,7 +104,7 @@ class SessionsTest(unittest.TestCase):
     def test_gate_claims_new_card_on_init(self):
         new = os.path.join(self.desk, "NEW-1")
         pid = self.claude()
-        self.gate("s1", pid=pid, command=f"python3 {ROOT}/scripts/workflow.py start task {new}")
+        self.gate("s1", pid=pid, command=f"python3 {LINK}/scripts/workflow.py start task {new}")
         self.assertEqual(sessions.status(new, "s1"), "mine")
         self.assertEqual(sessions.last(new)["why"], "new")
 
@@ -161,7 +164,7 @@ class SessionsTest(unittest.TestCase):
 
     def test_non_owner_cannot_mutate_card_by_any_syntax(self):
         self.own("s1", self.claude())
-        d, c = f"python3 {ROOT}/scripts/desk.py", self.card
+        d, c = f"python3 {LINK}/scripts/desk.py", self.card
         for cmd in (f"{d} finish {c} && true", f'{d} finish "{c}"', f"{d} finish {c}/sub",
                     f"cd {c} && {d} finish .", f"sed -i s/a/b/ {c}/state.json", f"echo x > {c}/plan.md"):
             self.assertIn("held by session s1", self.gate("s2", command=cmd) or "ALLOWED", cmd)
@@ -173,11 +176,11 @@ class SessionsTest(unittest.TestCase):
         legacy = os.path.join(self.desk, "OLD-1")
         os.makedirs(legacy)
         open(os.path.join(legacy, "state.json"), "w").close()
-        d = f"python3 {ROOT}/scripts"
+        d = f"python3 {LINK}/scripts"
         self.gate("s2", command=f"echo see {d}/desk.py init {legacy}")
         self.gate("s2", command=f"echo {d}/workflow.py start task {self.desk}/NEWX")
         self.gate("s2", command=f"{d}/desk.py init {legacy}")  # not python3 first
-        self.gate("s2", command=f"python3 {ROOT}/scripts/desk.py init {legacy} '[]'")  # has a state.json already
+        self.gate("s2", command=f"python3 {LINK}/scripts/desk.py init {legacy} '[]'")  # has a state.json already
         self.assertEqual(sessions.events(legacy), [])
         self.assertFalse(os.path.exists(os.path.join(self.desk, "NEWX")))
 

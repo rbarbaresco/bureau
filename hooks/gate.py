@@ -15,8 +15,10 @@ import subprocess
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts"))
 import rules
 import sessions
+import worktree
 
 WT = rules.WT
 ABS_WT = re.compile(r"(\S*?/desk/\S+?)/worktrees/([^/\s\"']+)")
@@ -73,6 +75,20 @@ def pr_allowed(cmd):
         PR_CMD.match(s) and not (re.match(rf"\s*{GIT}push\b", s) and FORCE.search(s)) for s in segs)
 
 
+def test_allowed(cmd, repo):
+    """A non-writing step may also run the repo's `test:` command from repos.yaml, so a reviewer can run the suite."""
+    try:
+        prefix = worktree.read_repos(os.environ.get("BUREAU_REPOS", os.path.join(rules.BUREAU, "repos.yaml")))[repo]["test"]
+    except (OSError, KeyError, ValueError):  # a missing or unreadable file denies; ValueError covers bad encoding
+        return False
+    if not prefix.strip():  # an empty prefix would match every segment
+        return False
+    cmd = HARMLESS_REDIRECT.sub("", cmd)
+    segs = [s for s in re.split(r"[;|&\n]+", cmd) if s.strip()]
+    return not UNSAFE.search(plain(cmd)) and all(
+        READ_ONLY.match(s) or re.match(rf"\s*{re.escape(prefix)}(\s|$)", s) for s in segs)
+
+
 def owner(card, session):
     """A card with a session log belongs to the session of its last claim; the first call of a resumed owner is logged."""
     st = sessions.status(card, session)
@@ -103,6 +119,8 @@ def check(card, repo, session, cmd=None):
         deny(f"No valid current step in {card}/state.json; start the run through /work.")
     idx = ids.index(current)
     if not steps[idx].get("writes_code"):
+        if cmd is not None and test_allowed(cmd, repo):
+            return
         deny(f"Step '{current}' does not write code. Move to a build step first.")
     for s in steps[:idx]:
         if s.get("gate", "none") != "none" and not approved.get(s["id"]):
