@@ -22,7 +22,7 @@ persona: staff-engineer
 gate: approve
 writes_code: true
 
-Load the repo rules, create the worktree, write the failing test first, then the fix.
+Load the repo rules, create the worktree, write the failing test first, then the fix. Commit all work before finishing: the `pr` step cannot commit.
 Write fix.md: what changed, test output, anything deliberately left alone.
 End the artifact with `## Open questions` (or "none").
 
@@ -38,4 +38,4 @@ persona: staff-engineer
 gate: approve
 
 Draft the PR title and body (summary, not the case; evidence goes in a comment). Show it to the human.
-Write the draft to pr.md: first line the title, then the body, then the `git diff --stat` file list. Commit all work first. `/approve` on this step runs `scripts/pr.py`, which pushes the branch, opens the draft PR and appends its link to pr.md.
+Write the draft to pr.md: first line the title, then the body, then the `git diff --stat` file list. `/approve` on this step runs `scripts/pr.py`, which pushes the branch, opens the draft PR and appends its link to pr.md.

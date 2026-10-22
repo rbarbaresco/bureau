@@ -52,7 +52,7 @@ For the current step in `state.json`:
 6. Human outcomes at a gate: `/approve` → the approve skill advances. Feedback → `python3 scripts/desk.py revise desk/<card-id> '<feedback>'`
    and redo the step. "Go back to X" → `desk.py reject desk/<card-id> <step> '<reason>'`.
    Add or skip steps on request: `desk.py add desk/<card-id> <after-step> '<step-json>'`, `desk.py skip desk/<card-id> <step>`.
-7. When `current` is `done`: summarize what was delivered and where (worktree paths, branches, PR link).
+7. When `current` is `done`: summarize what was delivered and where (worktree paths, branches, PR link from `pr.md`). If `pr.md` has no `## Opened` section, the PR was not opened: run `python3 scripts/pr.py desk/<card-id>` (it works on a done card).
 
 Resume: if `awaiting` is set and `approvals.json` has it, run `desk.py advance` (for `pr`, run `python3 scripts/pr.py desk/<card-id>` first); if not approved, show the artifact and remind the user to `/approve`.
 

@@ -16,7 +16,7 @@ persona: staff-engineer
 gate: approve
 writes_code: true
 
-Load the repo rules, create the worktree, then make the change. Test first if there is any logic. For docs, show the rendered diff.
+Load the repo rules, create the worktree, then make the change. Test first if there is any logic. For docs, show the rendered diff. Commit all work before finishing: the `pr` step cannot commit.
 Write build.md: what changed, test output, deviations from understand.md and why.
 End the artifact with `## Open questions` (or "none").
 
@@ -31,4 +31,4 @@ persona: staff-engineer
 gate: approve
 
 Draft the PR title and body (summary, not the case). Show it to the human.
-Write the draft to pr.md: first line the title, then the body, then the `git diff --stat` file list. Commit all work first. `/approve` on this step runs `scripts/pr.py`, which pushes the branch, opens the draft PR and appends its link to pr.md.
+Write the draft to pr.md: first line the title, then the body, then the `git diff --stat` file list. `/approve` on this step runs `scripts/pr.py`, which pushes the branch, opens the draft PR and appends its link to pr.md.

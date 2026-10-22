@@ -89,6 +89,17 @@ class PrTest(unittest.TestCase):
         self.run_pr()
         self.assertEqual(open(os.path.join(self.card, "pr.md")).read().count("## Opened"), 1)
 
+    def test_done_card_can_still_open_the_pr(self):
+        s = json.load(open(os.path.join(self.card, "state.json")))
+        write(os.path.join(self.card, "state.json"), json.dumps({**s, "current": "done", "awaiting": None}))
+        self.assertEqual(self.run_pr().returncode, 0)
+
+    def test_hash_in_title_kept_and_stray_file_ignored(self):
+        write(os.path.join(self.card, "pr.md"), "#42 Fix login\n")
+        write(os.path.join(self.card, "worktrees", ".DS_Store"), "")
+        self.assertEqual(self.run_pr().returncode, 0)
+        self.assertIn("--title #42 Fix login", self.read("args"))
+
     def test_refused_cases(self):
         self.approve()
         self.assertIn("not approved", self.run_pr().stderr)
@@ -98,6 +109,12 @@ class PrTest(unittest.TestCase):
         os.remove(os.path.join(self.wt, "dirty.py"))
         write(os.path.join(self.card, "pr.md"), "\n")
         self.assertIn("pr.md", self.run_pr().stderr)
+        os.remove(os.path.join(self.card, "pr.md"))
+        self.assertIn("not found", self.run_pr().stderr)
+        write(os.path.join(self.card, "pr.md"), "# t\n")
+        write(os.path.join(self.repos), "repos:\n  other:\n    path: /x\n")
+        self.assertIn("not found in", self.run_pr().stderr)
+        write(os.path.join(self.repos), f"repos:\n  clone:\n    path: {self.clone}\n    base: develop\n")
         write(os.path.join(self.card, "state.json"),
               json.dumps({"card": "ABC-1", "current": "build", "awaiting": "build", "steps": STEPS}))
         self.assertIn("not awaiting", self.run_pr().stderr)

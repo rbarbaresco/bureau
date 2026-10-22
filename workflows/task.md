@@ -23,7 +23,7 @@ gate: approve
 writes_code: true
 
 Load the repo rules, create the worktree, then implement test first. Write build.md: what changed,
-test output, deviations from plan.md and why.
+test output, deviations from plan.md and why. Commit all work before finishing: the `pr` step cannot commit.
 End the artifact with `## Open questions` (or "none").
 
 ## review
@@ -38,4 +38,4 @@ persona: staff-engineer
 gate: approve
 
 Draft the PR title and body (summary, not the case). Show it to the human.
-Write the draft to pr.md: first line the title, then the body, then the `git diff --stat` file list. Commit all work first. `/approve` on this step runs `scripts/pr.py`, which pushes the branch, opens the draft PR and appends its link to pr.md.
+Write the draft to pr.md: first line the title, then the body, then the `git diff --stat` file list. `/approve` on this step runs `scripts/pr.py`, which pushes the branch, opens the draft PR and appends its link to pr.md.
