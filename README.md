@@ -123,7 +123,7 @@ What happens next:
    | Feedback in plain words | The same step runs again; the old artifact is kept as `plan.v1.md` and your words as `plan.feedback-1.md` |
    | "Go back to plan, the approach is wrong" | The run returns to that step; later approvals are cleared and your reason is kept as `reject-1.md` |
 
-Every `/work` and `/approve` reply ends with a **Next** block: the command to run (`/approve <card-id>`), the other answers you can give (feedback, "go back to <step>") and what is needed from you (the artifact to read, its open questions). `scripts/desk.py` prints it (`next_block`).
+Every `/work` and `/approve` reply ends with a **Next** block: the command to run (`/approve <card-id>`), the other answers you can give (feedback, "go back to <step>") and what is needed from you (the artifact to read, its open questions). `desk.py finish` prints it for a gated step (`next_block` in `scripts/desk.py`); the `work` and `approve` skills write it in the other states.
 
 To continue a run in a new session, run `/work <card-id>` again. It resumes at the current step. A card has one owner session at a time (see [How it works](#how-it-works)), so the resume is refused while another live session holds it.
 
@@ -149,7 +149,7 @@ Describe a problem or an idea ("write an issue for this") and the `issue` skill 
 
 In `small`, `understand` replaces the separate plan: your approval there is what allows code to be written.
 
-**Docs line.** `bugfix`, `task` and `small` end the code step with a `Docs:` line: the README or doc updates made in the same change, or `Docs: none needed, <reason>`. The review step ranks a miss as a finding. No hook checks it.
+**Docs line.** `bugfix`, `task` and `small` end the code step with a `Docs:` line: the README or doc updates made in the same change, or `Docs: none needed, <reason>`. The review step ranks a miss as a finding. A docs-only change in `small` skips both. No hook checks it.
 
 **Step.** Has a persona, a gate (`none` or `approve`; `approve+check` is accepted but behaves exactly like `approve`, `scripts/desk.py:20`) and, for steps that edit code, `writes_code: true`.
 
@@ -192,9 +192,9 @@ Instructions in `AGENTS.md` are a request. Hooks turn the three most important o
 
 If any of those files change, the hash no longer matches and the rules must be loaded again. Subagents run through the same hook.
 
-**3. One session per card.** The same hook (`hooks/gate.py`) denies any edit or Bash command on a card that another live session owns, or that has no live owner (run `/work <id>` to take over). See *Card ownership* above.
+**3. One session per card.** The same hook (`hooks/gate.py`) denies any edit or non-read-only Bash command on a card that another live session owns, or that has no live owner (run `/work <id>` to take over). See *Card ownership* above.
 
-**After the last step.** When a card is `done`, the gate denies every edit ("Card is done: no more code changes"). The PR is opened by `scripts/pr.py`, which `/approve` on the `pr` step runs. It pushes the branch without force, opens a draft PR, and refuses a worktree with uncommitted changes, so commit during the code step.
+**After the last step.** When a card is `done`, the gate denies every code edit in the worktree ("Card is done: no more code changes"). The PR is opened by `scripts/pr.py`, which `/approve` on the `pr` step runs. It pushes the branch without force, opens a draft PR, and refuses a worktree with uncommitted changes, so commit during the code step.
 
 **What these do not cover.** Be clear about the limits:
 
@@ -304,7 +304,7 @@ Anything personal (a persona with your company's conventions, a private workflow
 python3 scripts/ui.py [--port 8765]    # then open http://127.0.0.1:8765
 ```
 
-A read-only page that lists the cards in `desk/` and shows one card's state, approvals, text, artifacts and session log. It never writes. It binds `127.0.0.1` only and rejects requests whose `Host` header is not `127.0.0.1` or `localhost` (`scripts/ui.py`). It reads the files in `desk/`; their format is the contract.
+A read-only page that lists the cards in `desk/` and shows one card's state, approvals, text, artifacts and session log. It never writes. It binds `127.0.0.1` only and rejects requests whose `Host` header is not `127.0.0.1:<port>` or `localhost:<port>` (`scripts/ui.py:149`). It reads the files in `desk/`; their format is the contract.
 
 ## Tests
 
