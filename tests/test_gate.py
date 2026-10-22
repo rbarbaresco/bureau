@@ -7,6 +7,9 @@ import unittest
 from unittest import mock
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# commands name LINK, not ROOT: in a card worktree ROOT holds desk/<card>, which the gate owner-checks
+LINK = os.path.join(tempfile.mkdtemp(), "bureau")
+os.symlink(ROOT, LINK)
 sys.path.insert(0, os.path.join(ROOT, "hooks"))
 import rules  # noqa: E402
 import sessions  # noqa: E402
@@ -172,7 +175,7 @@ class GateTest(unittest.TestCase):
 
     def test_desk_state_commands_allowed_from_worktree_cwd(self):
         self.state({"current": "plan", "steps": STEPS})
-        desk = f"python3 {ROOT}/scripts/desk.py"
+        desk = f"python3 {LINK}/scripts/desk.py"
         run = lambda c: self.run_gate("Bash", cwd=self.wt, command=c)
         self.assertIsNone(run(f"{desk} finish {self.card}"))
         self.assertIsNone(run(f"{desk} reject {self.card} plan 'redo'"))
@@ -198,7 +201,7 @@ class GateTest(unittest.TestCase):
         self.assertIsNotNone(run(f"python3 {other} finish {self.card}"))
 
     def test_rules_loader_runs_before_ack(self):
-        cmd = f"python3 {ROOT}/hooks/rules.py {self.wt}"
+        cmd = f"python3 {LINK}/hooks/rules.py {self.wt}"
         self.assertIsNone(self.run_gate("Bash", command=cmd))
 
     def test_subagent_call_gated_too(self):
