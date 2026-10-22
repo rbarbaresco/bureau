@@ -16,7 +16,7 @@ persona: staff-engineer
 gate: approve
 writes_code: true
 
-Load the repo rules, create the worktree, then make the change. Test first if there is any logic. For docs, show the rendered diff.
+Load the repo rules, create the worktree, then make the change. Test first if there is any logic. For docs, show the rendered diff. Commit all work before finishing: the `pr` step cannot commit.
 Write build.md: what changed, test output, deviations from understand.md and why.
 Docs: if the change alters documented behaviour, update the README, docs and instruction files
 (`AGENTS.md`/`CLAUDE.md`) in the same change; otherwise write `Docs: none needed, <reason>` in build.md. A docs-only change skips this; the change is the docs.
@@ -33,4 +33,5 @@ Check the docs line in build.md: does the diff leave any README, doc or instruct
 persona: staff-engineer
 gate: approve
 
-Draft the PR title and body (summary, not the case). Show it to the human. Open a draft PR only after approval.
+Draft the PR title and body (summary, not the case). Show it to the human.
+Write the draft to pr.md: first line the title, then the body, then the `git diff --stat` file list. `/approve` on this step runs `scripts/pr.py`, which pushes the branch, opens the draft PR and appends its link to pr.md.
