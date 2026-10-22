@@ -54,7 +54,7 @@ For the current step in `state.json`:
    Add or skip steps on request: `desk.py add desk/<card-id> <after-step> '<step-json>'`, `desk.py skip desk/<card-id> <step>`.
 7. When `current` is `done`: summarize what was delivered and where (worktree paths, branches, PR link).
 
-Resume: if `awaiting` is set and `approvals.json` has it, run `desk.py advance`; if not approved, show the artifact and remind the user to `/approve`.
+Resume: if `awaiting` is set and `approvals.json` has it, run `desk.py advance` (for `pr`, run `python3 scripts/pr.py desk/<card-id>` first); if not approved, show the artifact and remind the user to `/approve`.
 
 ## Next block
 
@@ -72,6 +72,6 @@ the artifact's `## Open questions` when there are any. A failed or blocked state
 
 ## Rules
 
-- Tracker writes (comments, status changes, creating issues) need the human's explicit approval first. Opening a PR is approved by `/approve` on the `pr` step (no second confirmation); PRs are drafts (`gh pr create --draft`). Merging is the human's.
+- Tracker writes (comments, status changes, creating issues) need the human's explicit approval first. Opening a PR is approved by `/approve` on the `pr` step (no second confirmation); `scripts/pr.py` opens it as a draft. Merging is the human's.
 - Status updates in tracker comments are summaries, not logs.
 - End each reply with where work landed: Bureau path, card folder, worktree and branch, committed or not.

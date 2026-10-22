@@ -38,4 +38,4 @@ persona: staff-engineer
 gate: approve
 
 Draft the PR title and body (summary, not the case; evidence goes in a comment). Show it to the human.
-Write the draft to pr.md. `/approve` on this step is the approval to push the branch and open it as a draft PR.
+Write the draft to pr.md: first line the title, then the body, then the `git diff --stat` file list. Commit all work first. `/approve` on this step runs `scripts/pr.py`, which pushes the branch, opens the draft PR and appends its link to pr.md.

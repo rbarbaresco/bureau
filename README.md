@@ -145,7 +145,7 @@ desk/SHOP-42/
   worktrees/shop/    the git worktree where code is written, on branch bureau/SHOP-42
 ```
 
-**Division of labour.** The tracker owns *what the work is*. The desk owns *where the run is*. Bureau writes to the tracker (comments, status, new issues) and opens PRs only after you approve. PRs are drafts. Merging is always yours.
+**Division of labour.** The tracker owns *what the work is*. The desk owns *where the run is*. Bureau writes to the tracker (comments, status, new issues) and opens PRs only after you approve (`/approve` on the `pr` step runs `scripts/pr.py`). PRs are drafts. Merging is always yours.
 
 ## What is enforced, and what is not
 
@@ -236,6 +236,7 @@ Anything personal (a persona with your company's conventions, a private workflow
 | `scripts/desk.py` | Card state and transitions: `init finish advance revise reject add skip list` |
 | `scripts/workflow.py` | Parses workflows: `list show start` |
 | `scripts/worktree.py` | Creates a card's worktree from `repos.yaml` |
+| `scripts/pr.py` | Pushes the branch, opens the draft PR from `pr.md`, appends the link to it |
 | `workflows/`, `personas/` | The shipped workflows and personas, yours to extend |
 | `AGENTS.md` | Base rules loaded for every card |
 | `repos.yaml.sample` | Copy to `repos.yaml` |
