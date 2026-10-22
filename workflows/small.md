@@ -30,4 +30,5 @@ As a read-only subagent, check the diff against the acceptance criteria in under
 persona: staff-engineer
 gate: approve
 
-Draft the PR title and body (summary, not the case). Show it to the human. Open a draft PR only after approval.
+Draft the PR title and body (summary, not the case). Show it to the human.
+Write the draft to pr.md. `/approve` on this step is the approval to push the branch and open it as a draft PR.

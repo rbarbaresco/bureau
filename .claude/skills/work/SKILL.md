@@ -72,6 +72,6 @@ the artifact's `## Open questions` when there are any. A failed or blocked state
 
 ## Rules
 
-- Tracker writes (comments, status changes, creating issues) and opening a PR need the human's explicit approval first; PRs are drafts (`gh pr create --draft`). Merging is the human's.
+- Tracker writes (comments, status changes, creating issues) need the human's explicit approval first. Opening a PR is approved by `/approve` on the `pr` step (no second confirmation); PRs are drafts (`gh pr create --draft`). Merging is the human's.
 - Status updates in tracker comments are summaries, not logs.
 - End each reply with where work landed: Bureau path, card folder, worktree and branch, committed or not.
