@@ -79,7 +79,9 @@ def test_allowed(cmd, repo):
     """A non-writing step may also run the repo's `test:` command from repos.yaml, so a reviewer can run the suite."""
     try:
         prefix = worktree.read_repos(os.environ.get("BUREAU_REPOS", os.path.join(rules.BUREAU, "repos.yaml")))[repo]["test"]
-    except (OSError, KeyError):
+    except (OSError, KeyError, ValueError):  # a missing or unreadable file denies; ValueError covers bad encoding
+        return False
+    if not prefix.strip():  # an empty prefix would match every segment
         return False
     cmd = HARMLESS_REDIRECT.sub("", cmd)
     segs = [s for s in re.split(r"[;|&\n]+", cmd) if s.strip()]

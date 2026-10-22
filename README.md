@@ -165,7 +165,7 @@ If any of those files change, the hash no longer matches and the rules must be l
 
 - Bash is gated with a read-only allowlist (`ls`, `cat`, `rg`, `grep`, `git status|log|diff`…). A deliberate evasion, such as a script that writes files, can slip through.
 - The agent can edit `state.json`, for example to fake the current step. This protects against skipped steps and forgetfulness, not against a hostile agent.
-- On steps that do not write code, any Bash command outside the allowlist that touches the worktree is denied, except the repo's `test:` command from `repos.yaml`. That command is not sandboxed: tests can still write files in the worktree.
+- On steps that do not write code, any Bash command outside the allowlist that touches the worktree is denied, except the repo's `test:` command from `repos.yaml`. That command is not sandboxed: any arguments are allowed, and tests can run code and write files in the worktree.
 
 ## Customizing
 

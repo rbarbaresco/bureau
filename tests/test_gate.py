@@ -102,6 +102,8 @@ class GateTest(unittest.TestCase):
             self.assertIn("does not write code", self.run_gate("Edit", file_path=os.path.join(self.wt, "app.py")))
             write(repos, "repos:\n  clone:\n    path: x\n")  # repo without a test: key
             self.assertIn("does not write code", self.run_gate("Bash", command=run))
+            write(repos, "repos:\n  clone:\n    path: x\n    test:\n")  # empty value must not match every segment
+            self.assertIn("does not write code", self.run_gate("Bash", command=f"cd {self.wt} && rm -rf x"))
 
     def test_path_outside_worktree_allowed(self):
         self.assertIsNone(self.run_gate("Write", file_path=os.path.join(self.card, "plan.md")))
