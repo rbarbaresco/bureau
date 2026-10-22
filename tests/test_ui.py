@@ -51,6 +51,45 @@ class UiTest(unittest.TestCase):
         self.assertIsNone(ui.card(self.desk, "../../etc"))
         self.assertEqual(ui.card(self.desk, "done")["sessions"], [])
 
+    def test_malformed_files_do_not_break_the_list(self):
+        for name, state in (("list", "[]"), ("str", '"x"'), ("num", '{"current": 5, "awaiting": 5, "steps": [1, {"id": [1]}]}'),
+                            ("steps", '{"current": "plan", "steps": "no"}')):
+            write(f"{self.desk}/{name}/state.json", state)
+        write(f"{self.desk}/null/state.json", "{}")
+        write(f"{self.desk}/null/approvals.json", "null")
+        write(f"{self.desk}/null/sessions.jsonl", json.dumps({"event": "claim", "session": 7}) + "\n[1]\n")
+        by = {r["id"]: r for r in ui.cards(self.desk)}
+        self.assertEqual(by["list"]["current"], "unreadable")
+        self.assertEqual(by["num"]["awaiting"], "5")
+        self.assertEqual(by["null"]["owner"], "7")
+        for cid in by:
+            ui.detail_page(cid, ui.card(self.desk, cid))
+        ui.list_page()
+
+    def test_symlinked_files_are_not_followed(self):
+        secret = os.path.join(tempfile.mkdtemp(), "secret")
+        write(secret, "TOPSECRET")
+        os.symlink(secret, f"{self.desk}/done/card.md")
+        os.symlink(secret, f"{self.desk}/done/note.md")
+        c = ui.card(self.desk, "done")
+        self.assertEqual(c["text"], "")
+        self.assertEqual(c["artifacts"], [])
+
+    def test_nested_card_query_string_and_approved_column(self):
+        write(f"{self.desk}/grp/sub/state.json", json.dumps({"current": "plan", "steps": [{"id": "plan"}]}))
+        self.assertIn("grp/sub", {r["id"] for r in ui.cards(self.desk)})
+        srv = ui.serve(0)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        port = srv.server_address[1]
+        for path, want in (("/card/grp/sub", "grp/sub"), ("/card/wait?x=1", "<td>yes</td>"), ("/?x=1", "awaiting approval")):
+            c = http.client.HTTPConnection("127.0.0.1", port)
+            c.request("GET", path)
+            r = c.getresponse()
+            self.assertEqual(r.status, 200, path)
+            self.assertIn(want, r.read().decode())
+        srv.shutdown()
+        srv.server_close()
+
     def test_http(self):
         srv = ui.serve(0)
         threading.Thread(target=srv.serve_forever, daemon=True).start()

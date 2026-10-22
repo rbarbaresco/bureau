@@ -8,25 +8,36 @@ import json
 import os
 import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from urllib.parse import unquote
+from urllib.parse import quote, unquote, urlsplit
 
 DESK = os.environ.get("BUREAU_DESK") or os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "desk")
 
 
-def _json(path, default):
-    try:
-        with open(path) as f:
-            return json.load(f)
-    except (OSError, json.JSONDecodeError):  # hooks write these files while we read
-        return default
-
-
 def _text(path):
+    """Regular files only (no symlinks, no FIFOs), capped: card files are small, and one bad file must not hang the viewer."""
     try:
+        if os.path.islink(path) or not os.path.isfile(path):
+            return ""
         with open(path, errors="replace") as f:
-            return f.read()
+            return f.read(1_000_000)
     except OSError:
         return ""
+
+
+def _json(path, default):
+    """A dict, or `default` for a missing, half-written, symlinked or non-object file (hooks write while we read)."""
+    try:
+        v = json.loads(_text(path))
+    except json.JSONDecodeError:
+        return default
+    return v if isinstance(v, dict) else default
+
+
+def _mtime(path):
+    try:
+        return os.path.getmtime(path)
+    except OSError:  # card deleted since the walk
+        return 0
 
 
 def _card_dirs(desk):
@@ -57,16 +68,22 @@ def cards(desk=DESK):
         d = os.path.join(desk, cid)
         sp = os.path.join(d, "state.json")
         if not os.path.exists(sp):
-            row = {"id": cid, "workflow": "-", "current": "not started", "awaiting": None, "mtime": os.path.getmtime(d)}
+            row = {"id": cid, "workflow": "-", "current": "not started", "awaiting": None, "mtime": _mtime(d)}
         else:
             s = _json(sp, None)
-            row = {"id": cid, "mtime": os.path.getmtime(sp)}
+            row = {"id": cid, "mtime": _mtime(sp)}
             row.update({"workflow": "-", "current": "unreadable", "awaiting": None} if s is None else
-                       {"workflow": s.get("workflow") or "-", "current": s.get("current", "?"), "awaiting": s.get("awaiting")})
+                       {"workflow": str(s.get("workflow") or "-"), "current": str(s.get("current", "?")),
+                        "awaiting": str(s["awaiting"]) if s.get("awaiting") else None})
         ev = _sessions(os.path.join(d, "sessions.jsonl"))
-        row["owner"] = (ev[-1].get("session") or "")[:8] if ev and ev[-1].get("event") == "claim" else None
+        row["owner"] = str(ev[-1].get("session") or "")[:8] if ev and ev[-1].get("event") == "claim" else None
         rows.append(row)
     return sorted(rows, key=lambda r: (not r["awaiting"], -r["mtime"]))
+
+
+def _steps(state):
+    steps = (state or {}).get("steps")
+    return [x for x in steps if isinstance(x, dict)] if isinstance(steps, list) else []
 
 
 def card(desk, cid):
@@ -75,11 +92,11 @@ def card(desk, cid):
         return None
     d = os.path.join(desk, cid)
     state = _json(os.path.join(d, "state.json"), None)
-    steps = [s.get("id") for s in (state or {}).get("steps", [])]
+    steps = [x.get("id") for x in _steps(state)]
     names = sorted(n[:-3] for n in os.listdir(d)
                    if n.endswith(".md") and n != "card.md" and os.path.isfile(os.path.join(d, n)) and not os.path.islink(os.path.join(d, n)))
     names.sort(key=lambda n: (steps.index(n) if n in steps else len(steps), n))
-    return {"state": state, "text": _text(os.path.join(d, "card.md")),
+    return {"state": state, "steps": _steps(state), "text": _text(os.path.join(d, "card.md")),
             "artifacts": [(n, _text(os.path.join(d, n + ".md"))) for n in names],
             "approvals": _json(os.path.join(d, "approvals.json"), {}),
             "sessions": _sessions(os.path.join(d, "sessions.jsonl"))}
@@ -94,7 +111,7 @@ def page(title, body):
 
 def list_page():
     rows = "".join(
-        f"<tr><td><a href='/card/{html.escape(r['id'])}'>{html.escape(r['id'])}</a></td><td>{html.escape(r['workflow'])}</td>"
+        f"<tr><td><a href='/card/{html.escape(quote(r['id']))}'>{html.escape(r['id'])}</a></td><td>{html.escape(r['workflow'])}</td>"
         f"<td>{html.escape(r['current'])}</td><td>{'<span class=wait>awaiting approval: ' + html.escape(r['awaiting']) + '</span>' if r['awaiting'] else ''}</td>"
         f"<td>{html.escape(r['owner'] or '')}</td></tr>" for r in cards(DESK))
     return page("Bureau", f"<h1>Bureau</h1><table><tr><th>card<th>workflow<th>step<th>gate<th>owner</tr>{rows}</table>")
@@ -104,7 +121,7 @@ def detail_page(cid, c):
     s = c["state"] or {}
     steps = "".join(
         f"<tr><td>{html.escape(str(x.get('id')))}</td><td>{html.escape(str(x.get('persona', '')))}</td><td>{html.escape(str(x.get('gate', '')))}</td>"
-        f"<td>{'yes' if x.get('id') in c['approvals'] else 'no'}</td></tr>" for x in s.get("steps", []))
+        f"<td>{'yes' if str(x.get('id')) in c['approvals'] else 'no'}</td></tr>" for x in c["steps"])
     sess = c["sessions"]
     if sess:
         last = sess[-1]
@@ -113,7 +130,7 @@ def detail_page(cid, c):
     else:
         owner, log = "no session record", ""
     arts = "".join(f"<h2>{html.escape(n)}</h2><pre>{html.escape(t)}</pre>" for n, t in c["artifacts"])
-    wait = f" <span class=wait>awaiting approval: {html.escape(s['awaiting'])}</span>" if s.get("awaiting") else ""
+    wait = f" <span class=wait>awaiting approval: {html.escape(str(s['awaiting']))}</span>" if s.get("awaiting") else ""
     return page(cid, f"<p><a href='/'>all cards</a></p><h1>{html.escape(cid)}</h1><p>{html.escape(str(s.get('workflow', '-')))} / "
                 f"{html.escape(str(s.get('current', 'not started')))}{wait}</p>"
                 f"<table><tr><th>step<th>persona<th>gate<th>approved</tr>{steps}</table><h2>card</h2><pre>{html.escape(c['text'])}</pre>"
@@ -131,10 +148,11 @@ class Handler(BaseHTTPRequestHandler):
         port = self.server.server_address[1]
         if self.headers.get("Host") not in (f"127.0.0.1:{port}", f"localhost:{port}"):  # DNS rebinding
             return self._send(403, b"forbidden")
-        if self.path == "/":
+        path = urlsplit(self.path).path
+        if path == "/":
             return self._send(200, list_page())
-        if self.path.startswith("/card/"):
-            cid = unquote(self.path[len("/card/"):])
+        if path.startswith("/card/"):
+            cid = unquote(path[len("/card/"):])
             c = card(DESK, cid)
             if c is not None:
                 return self._send(200, detail_page(cid, c))
