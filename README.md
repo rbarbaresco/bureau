@@ -130,7 +130,7 @@ At any point, ask in plain words: *"Ask the architect whether this belongs in th
 
 **Step.** Has a persona, a gate (`none`, `approve` or `approve+check`) and, for steps that edit code, `writes_code: true`.
 
-**Persona.** A markdown file in `personas/` describing a role: what it cares about and how it reports. `writer` personas work in your session. `read-only` personas run as subagents that cannot edit files. Shipped: `architect`, `staff-engineer`, `qa`.
+**Persona.** A markdown file in `personas/` describing a role: what it cares about and how it reports. `writer` personas work in your session. `read-only` personas run as subagents that cannot edit files. Shipped: `architect`, `staff-engineer`, `qa`, `journalist`.
 
 **Desk.** One folder per card, never committed:
 
