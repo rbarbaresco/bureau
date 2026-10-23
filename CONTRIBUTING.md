@@ -1,6 +1,6 @@
 # Contributing
 
-Issues and pull requests are welcome. Bureau is early work and maintained by one person, so replies are best-effort.
+The best way to help is to use Bureau on a real task and tell us how it went: what worked, what got in your way, what you wished it did. Every rough edge you hit is a bug report or an idea worth filing. Issues and pull requests are welcome too; Bureau is early work and maintained by one person, so replies are best-effort.
 
 - **Branch, don't commit to `main`.** Branch off `main` and open a draft PR. Merging is the maintainer's. Bureau's own runs open their PRs with `scripts/pr.py`; you can open yours by hand.
 - **Run the tests** before you push: `python3 -I -m unittest discover -s tests` (no network, a few seconds). `tests/e2e_canary.sh` makes real `claude -p` calls and is only needed after changing a hook.

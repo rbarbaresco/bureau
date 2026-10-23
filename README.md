@@ -326,7 +326,7 @@ The end-to-end script builds a throwaway Bureau copy and checks that a write is 
 
 ## Contributing and support
 
-Issues and pull requests are welcome; Bureau is early work and maintained by one person, so replies are best-effort. See [CONTRIBUTING.md](CONTRIBUTING.md) for the branch and test flow.
+The most useful thing you can do is use Bureau on a real task and tell us how it went. Issues and pull requests are welcome too; Bureau is early work and maintained by one person, so replies are best-effort. See [CONTRIBUTING.md](CONTRIBUTING.md) for the branch and test flow.
 
 - **Questions and bugs:** open an issue on this repo (the Issues tab has forms for a bug, an idea and a question), or let `/issue` draft it (see [Drafting an issue](#drafting-an-issue)). It works when Claude Code is started in your Bureau checkout, and files into the repo you name, else the current one, so say `rbarbaresco/bureau` when you mean this one.
 - **Security:** report a way around the gate hooks privately, see [SECURITY.md](SECURITY.md).
