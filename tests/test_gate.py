@@ -89,6 +89,12 @@ class GateTest(unittest.TestCase):
         self.state({"current": "zzz", "steps": STEPS})
         self.assertIn("desk.py reject", self.edit())
 
+    def test_corrupt_state_json_is_not_no_workflow(self):
+        write(os.path.join(self.card, "state.json"), "{broken")
+        reason = self.edit()
+        self.assertNotIn("workflow.py start", reason)
+        self.assertIn("unreadable", reason)
+
     def test_non_build_step_denied(self):
         self.state({"current": "plan", "steps": STEPS})
         self.approve("plan")
