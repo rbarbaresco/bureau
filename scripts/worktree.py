@@ -15,6 +15,8 @@ BUREAU = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 def read_repos(path):
     # shortcut: only the two-level layout of repos.yaml.sample, no '#' inside values; use PyYAML if it grows
     repos, cur = {}, None
+    if not os.path.exists(path):  # still an OSError, so hooks/gate.py keeps denying
+        raise FileNotFoundError(f"{path} not found; create it with: cp {os.path.join(BUREAU, 'repos.yaml.sample')} {path}")
     with open(path) as f:
         for line in f:
             line = line.split("#")[0].rstrip()
@@ -30,7 +32,10 @@ def read_repos(path):
 
 
 def add(card_dir, name, repos_file):
-    repos = read_repos(repos_file)
+    try:
+        repos = read_repos(repos_file)
+    except FileNotFoundError as e:
+        sys.exit(str(e))
     if name not in repos:
         sys.exit(f"unknown repo '{name}'; known: {', '.join(repos) or 'none'}")
     clone, base = repos[name]["path"], repos[name].get("base", "main")

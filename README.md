@@ -296,6 +296,7 @@ Anything personal (a persona with your company's conventions, a private workflow
 | "Card x has no live owner session. Run /work x to take over." | The owner ended or died. Run `/work <card-id>` in this session |
 | "Step 'x' does not write code" | The run is not on a build step yet; finish the earlier steps. Non-build steps can still run the read-only commands in the "A read-only command is denied" row |
 | "unknown repo 'x'" | Add it to `repos.yaml` |
+| "repos.yaml not found; create it with: cp …" | Run the `cp` command in the message (see Register your repositories) |
 | `/approve` seems to do nothing | Check `/hooks`. The hooks load from `.claude/settings.json` only when Claude Code is started inside the Bureau folder |
 | A read-only command is denied (also the cause of "does not write code" above) | Redirects other than to `/dev/null` and pipes into non-allowlisted commands count as writes. Simplify the command, declare the repo's `test:` in `repos.yaml` to run tests, or approve the build step first |
 | Jira card cannot be read | Check the `acli` login, or paste the story text |

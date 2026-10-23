@@ -100,6 +100,12 @@ class PrTest(unittest.TestCase):
         self.assertEqual(self.run_pr().returncode, 0)
         self.assertIn("--title #42 Fix login", self.read("args"))
 
+    def test_missing_repos_file_says_how_to_create_it(self):
+        os.remove(self.repos)
+        err = self.run_pr().stderr
+        self.assertIn("repos.yaml.sample", err)
+        self.assertNotIn("not found in", err)
+
     def test_refused_cases(self):
         self.approve()
         self.assertIn("not approved", self.run_pr().stderr)
