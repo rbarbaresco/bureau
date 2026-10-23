@@ -4,7 +4,9 @@
 Usage: rework.py <card-dir>
 Exits non-zero, saying what to run instead, unless the card exists locally, is done with its PR opened,
 still has a worktree (or a branch to recreate one from), the PR is open and has review feedback.
-Prints {"pr", "repo", "threads", "comments"}; read-only, safe to run again.
+Prints {"pr", "repo", "threads", "comments"}; read-only, safe to run again, also while a rework round is open.
+Each unresolved thread carries "answered": true when its last comment is the PR author's, so the feedback step
+can say "already answered" instead of dropping it; only unanswered threads or new comments count as feedback.
 """
 import json
 import os
@@ -16,7 +18,12 @@ import worktree
 
 THREADS = """query($owner:String!,$repo:String!,$n:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$n){
 reviewThreads(first:100){totalCount nodes{isResolved isOutdated path line
-comments(first:20){nodes{author{login} body url createdAt}}}}}}}"""
+comments(first:20){totalCount nodes{databaseId author{login} body url createdAt}}}}}}}"""
+ROUND = ("feedback", "apply", "rework-review")  # step ids of an open rework round, numbered from round 2
+
+
+def login(c):
+    return (c.get("author") or {}).get("login")  # null for a deleted account
 
 
 def gh_json(args, cwd):
@@ -46,7 +53,7 @@ def rework(card):
     state = pr.load(os.path.join(card, "state.json"))
     if not state:
         sys.exit(f"No local card {name}. /rework only continues a card Bureau ran here; to start the item, run /work <ref>.")
-    if state.get("current") != "done":
+    if state.get("current") != "done" and not str(state.get("current")).startswith(ROUND):
         sys.exit(f"Card {name} is at step '{state.get('current')}', not finished. Continue it with /work {name}.")
     try:
         with open(os.path.join(card, "pr.md")) as f:
@@ -60,7 +67,7 @@ def rework(card):
     prs = gh_json(["pr", "list", "--head", branch, "--state", "all", "--json", "url,number,state"], cwd)
     if not prs:
         sys.exit(f"No PR found on branch {branch} (via gh).")
-    p = prs[0]
+    p = next((x for x in prs if x["state"] == "OPEN"), prs[0])  # a reused branch name may also have an old PR
     if p["state"] != "OPEN":
         sys.exit(f"PR is {p['state']}: {p['url']}. Nothing to rework.")
     view = gh_json(["pr", "view", str(p["number"]), "--json", "author,commits,reviews,comments"], cwd)
@@ -71,12 +78,15 @@ def rework(card):
     # before an earlier push of the same round is missed; upgrade if that bites
     pushed = max((c["committedDate"] for c in view["commits"]), default="")
     me = (view.get("author") or {}).get("login")
-    comments = [{"author": c["author"]["login"], "body": c["body"], "at": c.get("createdAt") or c.get("submittedAt")}
+    comments = [{"author": login(c), "body": c["body"], "at": c.get("createdAt") or c.get("submittedAt"), "url": c.get("url")}
                 for c in view["reviews"] + view["comments"]
                 if c["body"].strip() and (c.get("createdAt") or c.get("submittedAt") or "") > pushed
-                and c["author"]["login"] != me]
-    if not threads and not comments:
-        sys.exit(f"No unresolved threads or new comments: no review to check on {p['url']}.")
+                and login(c) != me]
+    for t in threads:
+        t["answered"] = bool(t["comments"]["nodes"]) and login(t["comments"]["nodes"][-1]) == me
+    if not comments and all(t["answered"] for t in threads):
+        sys.exit(f"No new comments and no unanswered thread ({len(threads)} unresolved, all answered): "
+                 f"no review to check on {p['url']}.")
     return {"pr": p, "repo": repo, "threads": threads, "comments": comments,
             "truncated": gql["totalCount"] > len(gql["nodes"])}
 

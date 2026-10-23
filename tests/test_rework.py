@@ -9,6 +9,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REWORK = os.path.join(ROOT, "scripts", "rework.py")
 # stand-in for `gh`: `pr list` / `pr view` / `api` print $T/list, $T/view, $T/threads (a missing file fails the call)
 FAKE_GH = """#!/bin/sh
+echo "$@" >> "$T/calls"
 case "$1 $2" in
   "pr list") cat "$T/list" ;;
   "pr view") cat "$T/view" ;;
@@ -24,9 +25,11 @@ def threads(*nodes):
     return {"data": {"repository": {"pullRequest": {"reviewThreads": {"totalCount": len(nodes), "nodes": list(nodes)}}}}}
 
 
-def thread(resolved=False):
-    return {"isResolved": resolved, "isOutdated": False, "path": "a.py", "line": 3,
-            "comments": {"nodes": [{"author": {"login": "bob"}, "body": "rename this", "url": "u", "createdAt": "2026-01-03T00:00:00Z"}]}}
+def thread(resolved=False, replied=False):
+    nodes = [{"databaseId": 11, "author": {"login": "bob"}, "body": "rename this", "url": "u", "createdAt": "2026-01-03T00:00:00Z"}]
+    if replied:
+        nodes.append({"databaseId": 12, "author": {"login": "me"}, "body": "done", "url": "u2", "createdAt": "2026-01-04T00:00:00Z"})
+    return {"isResolved": resolved, "isOutdated": False, "path": "a.py", "line": 3, "comments": {"totalCount": len(nodes), "nodes": nodes}}
 
 
 def write(path, text):
@@ -72,6 +75,47 @@ class ReworkTest(unittest.TestCase):
         self.assertEqual(out["repo"], "clone")
         self.assertEqual(out["threads"][0]["comments"]["nodes"][0]["body"], "rename this")
 
+    def test_graphql_call_uses_the_gh_placeholders_and_thread_comment_ids(self):
+        self.run_rework()
+        calls = self.read("calls")
+        self.assertIn("api graphql", calls)
+        self.assertIn("owner={owner}", calls)
+        self.assertIn("repo={repo}", calls)
+        self.assertIn("databaseId", calls)
+
+    def read(self, name):
+        with open(os.path.join(self.tmp, name)) as f:
+            return f.read()
+
+    def test_reopened_card_in_a_rework_step_can_fetch_again(self):
+        for step in ("feedback", "apply", "rework-review-2"):
+            write(os.path.join(self.card, "state.json"), json.dumps({"card": "ABC-1", "current": step, "steps": [{"id": step}]}))
+            self.assertEqual(self.run_rework().returncode, 0, step)
+
+    def test_answered_thread_is_kept_and_flagged_next_to_an_unanswered_one(self):
+        self.put("threads", threads(thread(replied=True), thread()))
+        out = json.loads(self.run_rework().stdout)
+        self.assertEqual([t["answered"] for t in out["threads"]], [True, False])
+
+    def test_only_answered_threads_is_not_feedback(self):
+        self.put("threads", threads(thread(replied=True)))
+        self.refused("all answered", "example.test/pull/7")
+
+    def test_answered_thread_is_kept_when_a_new_comment_makes_it_feedback(self):
+        self.put("threads", threads(thread(replied=True)))
+        self.put("view", {**VIEW, "comments": [{"author": {"login": "bob"}, "body": "also this", "createdAt": "2026-01-05T00:00:00Z", "url": "c"}]})
+        out = json.loads(self.run_rework().stdout)
+        self.assertTrue(out["threads"][0]["answered"])
+        self.assertEqual(out["comments"][0]["url"], "c")
+
+    def test_deleted_account_comment_does_not_crash(self):
+        self.put("view", {**VIEW, "comments": [{"author": None, "body": "ghost", "createdAt": "2026-01-05T00:00:00Z"}]})
+        self.assertEqual(self.run_rework().returncode, 0)
+
+    def test_an_open_pr_is_preferred_over_an_older_merged_one_on_the_same_branch(self):
+        self.put("list", [{**PR, "state": "MERGED", "number": 3}, PR])
+        self.assertEqual(json.loads(self.run_rework().stdout)["pr"]["number"], 7)
+
     def test_refuses_without_a_local_card(self):
         r = self.run_rework(os.path.join(self.tmp, "desk", "NOPE-1"))
         self.assertNotEqual(r.returncode, 0)
@@ -106,11 +150,11 @@ class ReworkTest(unittest.TestCase):
 
     def test_refuses_when_there_is_no_pr_for_the_branch(self):
         self.put("list", [])
-        self.refused("No PR")
+        self.refused("No PR found")
 
     def test_refuses_when_gh_fails(self):
         os.remove(os.path.join(self.tmp, "list"))
-        self.refused("gh")
+        self.refused("failed")
 
     def test_refuses_when_everything_is_resolved(self):
         self.put("threads", threads(thread(resolved=True)))
