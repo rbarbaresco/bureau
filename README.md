@@ -196,6 +196,8 @@ If any of those files change, the hash no longer matches and the rules must be l
 
 **After the last step.** When a card is `done`, the gate denies every code edit in the worktree ("Card is done: no more code changes"). The PR is opened by `scripts/pr.py`, which `/approve` on the `pr` step runs. It pushes the branch without force, opens a draft PR, and refuses a worktree with uncommitted changes, so commit during the code step.
 
+**A follow-up that needs the PR number.** Some repos want an entry (a changelog fragment) named after the PR number, which exists only once `pr` is approved. The gate does not make an exception for that. Add a gated code step after `pr`: `desk.py add desk/<card> pr '{"id":"followup","gate":"approve","persona":"staff-engineer","writes_code":true}'`. After `/approve` on `pr`, the card moves to `followup` instead of `done`; the agent reads the PR link from `pr.md`, makes the change, commits and pushes (no force), and you `/approve` once more. `pr.py` pushes only once, so the step pushes itself. Without that step, such an edit is yours to make after the PR opens.
+
 **What these do not cover.** Be clear about the limits:
 
 - Bash is gated with a read-only allowlist, the `READ_ONLY` pattern in `hooks/gate.py` (it also lets the rules loader and `scripts/worktree.py` run). A deliberate evasion, such as a script that writes files, can slip through.

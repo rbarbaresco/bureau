@@ -38,6 +38,7 @@ the card text. Still show the rest of the overview, but do not propose a workflo
   or say none fits and propose a custom step list (same format as `workflows/*.md`: `## step-id`, `persona:`, `gate:`, `writes_code:`, instructions;
   write it to `desk/<card-id>/workflow.md`). If the user named a workflow, use it.
 - Show the steps with their persona and gate (`python3 scripts/workflow.py show <name|file>`).
+  If the repo's rules require an entry that needs the PR number (a changelog fragment), propose a `followup` step after `pr` (see the README, *A follow-up that needs the PR number*).
   The human accepts or edits (add, skip, reorder, change a gate or persona). **Wait for confirmation.**
 - On confirmation: `python3 scripts/workflow.py start <name|desk/<card-id>/workflow.md> desk/<card-id>`.
 
