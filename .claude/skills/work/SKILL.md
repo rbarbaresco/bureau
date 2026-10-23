@@ -22,8 +22,14 @@ Paths below are relative to the Bureau root. Never run steps the human did not c
 
 ## 2. Overview (for the human to read)
 
-At most ten lines: what is asked; acceptance criteria and what is unclear; the likely repo(s) from `repos.yaml`;
+Before sizing, check the card against the repo as it is now: read the code it points at, `git log` for the area,
+and open or linked PRs/issues. Then, at most ten lines: **Validity** (`valid`, `real bug`, `already fixed`,
+`stale or partly wrong` (claims don't match the code), `duplicate`, `nitpick` or `unverifiable`, with a one-line reason
+and a file or PR reference); what is asked; acceptance criteria and what is unclear; the likely repo(s) from `repos.yaml`;
 size and risk (auth, data, infra, migrations). Flag anything blocking.
+
+If Validity is not `valid` or `real bug`, say so first and stop: the human decides to continue, close the card, or fix
+the card text. Do not propose a workflow until they answer.
 
 ## 3. Workflow
 

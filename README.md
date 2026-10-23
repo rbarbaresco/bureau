@@ -112,7 +112,7 @@ Start with something small and low risk, such as a typo or a failing test in a r
 What happens next:
 
 1. **Intake.** The card is saved to `desk/<card-id>/card.md`.
-2. **Overview.** You get about ten lines: what is asked, acceptance criteria, what is unclear, the likely repo, size and risk.
+2. **Overview.** You get about ten lines: whether the card still holds (valid, already fixed, nitpick…), what is asked, acceptance criteria, what is unclear, the likely repo, size and risk.
 3. **Workflow.** Bureau picks the best match from `workflows/` and says why, or proposes a custom step list. You accept it or edit it ("skip review", "add a design step before plan", "make plan use the architect"). Nothing starts until you confirm.
 4. **The run.** Bureau does one step at a time and writes an artifact for each (`triage.md`, `plan.md`…). At a gated step it stops, summarizes the artifact and waits.
 5. **At a gate you have three answers:**
