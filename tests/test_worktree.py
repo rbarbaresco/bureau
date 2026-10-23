@@ -28,6 +28,14 @@ class WorktreeTest(unittest.TestCase):
         exclude = open(os.path.join(clone, ".git", "info", "exclude")).read().splitlines()
         self.assertEqual((exclude.count(".coverage"), exclude.count(".coverage.*")), (1, 1))
 
+    def test_missing_repos_file_says_how_to_create_it(self):
+        missing = os.path.join(tempfile.mkdtemp(), "repos.yaml")
+        r = subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "worktree.py"), "desk/A-1", "clone",
+                            "--repos", missing], capture_output=True, text=True)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertNotIn("Traceback", r.stderr)
+        self.assertIn(f"cp {os.path.join(ROOT, 'repos.yaml.sample')} {missing}", r.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

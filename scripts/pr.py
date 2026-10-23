@@ -60,6 +60,8 @@ def open_pr(card):
     repos_file = os.environ.get("BUREAU_REPOS", os.path.join(worktree.BUREAU, "repos.yaml"))
     try:
         base = worktree.read_repos(repos_file)[repo].get("base", "main")
+    except FileNotFoundError as e:
+        sys.exit(str(e))
     except (OSError, KeyError):
         sys.exit(f"repo '{repo}' not found in {repos_file}.")
     branch = "bureau/" + os.path.basename(card)
