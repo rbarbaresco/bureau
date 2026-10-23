@@ -12,7 +12,7 @@ Paths are relative to the Bureau root. A hook claims the card for this session w
 Run `python3 scripts/rework.py desk/<card-id>`.
 On a non-zero exit, show its message, change nothing, and end with a **Next** block (see the `work` skill) naming the command the message gives (`/work …`) or what is missing. Do not add steps, create a worktree or try another route: the script refuses when the card is not local, is not done, has no PR opened, has lost its worktree and branch, has a merged or closed PR, or has no review to check (no unresolved thread and no new comment).
 
-If `state.json` already has a rework step as `current` (`feedback`, `apply`, `rework-review`, with or without `-N`), a round is open: skip step 2 and carry on with that step through the `work` skill's run loop. Fetch the threads only in `feedback`; later steps work from `feedback.md` and `apply.md`, because once the threads are resolved or answered on GitHub the script has nothing left to print.
+If `state.json` already has a rework step as `current` (`feedback`, `apply`, `rework-review`, with or without `-N`), a round is open: skip step 2 and carry on with that step through the `work` skill's run loop. Fetch the threads only in `feedback`; later steps work from `feedback.md` and `apply.md`, so the input stays the one that was approved.
 
 ## 2. Open the rework round
 
@@ -29,7 +29,7 @@ Then run the steps as in the `work` skill's run loop.
 
 ## feedback (read-only, gate approve)
 
-Input: the JSON `rework.py` printed (rerun it for fresh comments). If it says `truncated`, or a thread has more comments than it lists (`comments.totalCount`), say so in the artifact.
+Input: the JSON `rework.py` printed (fetch it here, not in later steps). If it says `truncated`, or a thread has more comments than it lists (`comments.totalCount`), say so in the artifact.
 Every unresolved thread gets a row, including those with `"author_last": true` (the PR author spoke last). Read the whole thread against the current code: the author said "will do" or promised a change → it is still work, action change; fixed in a later commit or answered with nothing left to do → skip, "fixed in <commit>, skipping"; the reply is valid and settles it → skip, "valid reply, taken into account"; the reply is wrong or incomplete → change or reply. A thread with more comments than listed (`comments.totalCount`) needs its `url` read before judging. Never drop a thread silently.
 Write `desk/<card>/feedback.md`: a table with one row per thread or comment: link, verdict (valid / already addressed / out of scope / wrong), a one-line reason, proposed action (change / reply / ask / skip). Check "already addressed" against the worktree's current code. Give the drafted reply text under the table for every reply and ask row. Nothing is posted or changed in this step.
 `/approve` approves the listed changes and the listed replies, verbatim. End with `## Open questions` (or "none").

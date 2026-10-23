@@ -4,7 +4,7 @@
 Usage: rework.py <card-dir>
 Exits non-zero, saying what to run instead, unless the card exists locally, is done with its PR opened,
 still has a worktree (or a branch to recreate one from), the PR is open and has review feedback.
-Prints {"pr", "repo", "threads", "comments"}; read-only, safe to run again, also while a rework round is open.
+Prints {"pr", "repo", "threads", "comments"}; read-only, safe to run again.
 Each unresolved thread carries "author_last": true when its last comment is the PR author's (a hint for the
 feedback step, e.g. "will do" is a commitment to act, "fixed in abc" may be skippable). It does not filter: every
 unresolved thread counts as feedback, since an author's reply often starts the rework.
