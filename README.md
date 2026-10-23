@@ -36,7 +36,9 @@ What you get:
 - [Viewing cards](#viewing-cards)
 - [Troubleshooting](#troubleshooting)
 - [Tests](#tests)
+- [Contributing and support](#contributing-and-support)
 - [Status and limits](#status-and-limits)
+- [License](#license)
 
 ## Requirements
 
@@ -48,6 +50,8 @@ What you get:
 | `acli` (Atlassian CLI), logged in | Reading Jira work items. Optional, and not yet exercised (see [limits](#status-and-limits)) |
 
 Bureau runs on Linux. Card ownership (see [How it works](#how-it-works)) finds the `claude` process through `/proc` (`hooks/sessions.py`), so on macOS that lock does not work (`/work` prints a warning); the rest is untested there. Windows is untested.
+
+> **Warning.** Bureau lets an AI agent edit code in a git worktree and open draft PRs under your `gh` login. The gates stop it between steps, but they are not a sandbox: read [what is enforced, and what is not](#what-is-enforced-and-what-is-not) before you point it at a repo you care about, and review every diff.
 
 ## First steps
 
@@ -281,6 +285,8 @@ Anything personal (a persona with your company's conventions, a private workflow
 | `workflows/`, `personas/` | The shipped workflows and personas, yours to extend |
 | `AGENTS.md` | Base rules loaded for every card |
 | `repos.yaml.sample` | Copy to `repos.yaml` |
+| `LICENSE`, `CONTRIBUTING.md`, `SECURITY.md` | MIT license, how to contribute, how to report a gate bypass |
+| `.github/ISSUE_TEMPLATE/` | Issue forms: bug report, idea, question |
 | `desk/` | Run state, gitignored |
 | `tests/` | Unit tests and the end-to-end check |
 | `STEPS.md` | Build log: what is done and how each step was verified |
@@ -318,6 +324,13 @@ tests/e2e_canary.sh                         # real `claude -p` runs; costs a few
 
 The end-to-end script builds a throwaway Bureau copy and checks that a write is refused before the rules are loaded, that rules from both the repo and a parent folder then reach the model, and that a raw `/approve` prompt reaches the hook. Run it again after upgrading Claude Code, since the hooks depend on its behaviour. Set `E2E_MODEL` to change the model. The unit tests point the hooks at a temporary setup with `BUREAU_DESK`, `BUREAU_REPOS` (a `repos.yaml`) and `BUREAU_CLAUDE_PID` (a stand-in `claude` process); you do not need them otherwise.
 
+## Contributing and support
+
+The most useful thing you can do is use Bureau on a real task and tell us how it went. Issues and pull requests are welcome too; Bureau is early work and maintained by one person, so replies are best-effort. See [CONTRIBUTING.md](CONTRIBUTING.md) for the branch and test flow.
+
+- **Questions and bugs:** open an issue on this repo (the Issues tab has forms for a bug, an idea and a question), or let `/issue` draft it (see [Drafting an issue](#drafting-an-issue)). It works when Claude Code is started in your Bureau checkout, and files into the repo you name, else the current one, so say `rbarbaresco/bureau` when you mean this one.
+- **Security:** report a way around the gate hooks privately, see [SECURITY.md](SECURITY.md).
+
 ## Status and limits
 
 - **Claude Code only.** The files are plain markdown and Python, so Cursor and Codex adapters are possible later; none exist.
@@ -325,3 +338,7 @@ The end-to-end script builds a throwaway Bureau copy and checks that a write is 
 - **Not built yet:** a `project` workflow (discovery, creating child stories, nested task runs), Sentry intake without a pasted issue, a trial on a real production card.
 - **Tested with real sessions:** pasted stories, GitHub issues, the full plan → fix → review → PR-draft loop on a scratch repo. Jira intake through `acli` has not been exercised.
 - Early work: expect rough edges, and read `STEPS.md` for what has been verified.
+
+## License
+
+MIT, see [LICENSE](LICENSE). Copyright (c) 2026 Rodrigo Barbaresco.

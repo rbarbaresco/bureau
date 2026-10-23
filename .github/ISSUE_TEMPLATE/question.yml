@@ -1,0 +1,17 @@
+name: Question
+description: Ask how something works or whether a change would be welcome
+labels: [question]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What you are trying to do and what you have tried.
+    validations:
+      required: true
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+    validations:
+      required: true

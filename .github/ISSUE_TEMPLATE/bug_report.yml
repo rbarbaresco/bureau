@@ -1,0 +1,18 @@
+name: Bug report
+description: Something does not work as expected
+labels: [bug]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What happens, where, and why it matters. Quote exact error text.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected
+      description: The outcome you wanted. Add your Claude Code version and OS if the hooks are involved.
+    validations:
+      required: true
