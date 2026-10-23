@@ -13,7 +13,8 @@ finish: current step is done; a gated step then waits (`awaiting`) for the human
 finish also prints the human's Next block (command to run, what to answer).
 advance: moves on once the awaiting step is approved (approvals.json is written only by the hook).
 cancel: halts the card for good and renames its folder to <card>.cancelled (-2, -3 on repeats), so the id can
-be worked again; the worktrees and branch are kept.
+be worked again; the worktrees and branch are kept. Run it from outside the card's worktrees (the shell's cwd would
+vanish). A card with nested runs moves whole: cancel those first.
 A step is {"id", "gate": none|approve|approve+check, "persona"?, "writes_code"?}.
 """
 import json
@@ -59,8 +60,8 @@ def init(card_dir, steps, workflow=None):
 
 
 def _live(state):
-    if state["current"] in ("done", "cancelled"):
-        raise ValueError(f"card is {state['current']}")
+    if state["current"] == "cancelled":
+        raise ValueError("card is cancelled")
     return state
 
 
@@ -198,6 +199,8 @@ def cancel(card_dir, reason):
     """Halt the card for good and rename its folder so the id is free again. Returns the new path."""
     card = os.path.abspath(card_dir)
     s = _live(load(card))
+    if s["current"] == "done":
+        raise ValueError("card is done: nothing to cancel")
     s.update(current="cancelled", awaiting=None,
              cancelled={"reason": reason, "at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")})
     save(card, s)

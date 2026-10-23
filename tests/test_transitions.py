@@ -126,14 +126,7 @@ class CancelTest(unittest.TestCase):
         desk.init(self.card, STEPS)
         self.assertEqual(desk.cancel(self.card, "c"), os.path.join(self.desk, "ABC-1.cancelled-3"))
 
-    def test_cancelled_and_done_cards_refuse_every_transition(self):
-        done = os.path.join(self.desk, "ABC-2")
-        desk.init(done, STEPS)
-        s = desk.load(done)
-        s["current"] = "done"
-        desk.save(done, s)
-        with self.assertRaises(ValueError):
-            desk.cancel(done, "x")
+    def test_cancelled_card_refuses_every_transition(self):
         new = desk.cancel(self.card, "x")
         for call in (lambda: desk.cancel(new, "y"), lambda: desk.finish(new), lambda: desk.advance(new),
                      lambda: desk.revise(new, "f"), lambda: desk.reject(new, "plan", "r"),
@@ -141,6 +134,15 @@ class CancelTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 call()
         self.assertEqual(desk.load(new)["current"], "cancelled")
+
+    def test_done_card_cannot_be_cancelled_but_can_still_be_sent_back(self):
+        s = desk.load(self.card)
+        s["current"] = "done"
+        desk.save(self.card, s)
+        with self.assertRaises(ValueError):
+            desk.cancel(self.card, "x")
+        self.assertTrue(os.path.isdir(self.card))
+        self.assertEqual(desk.reject(self.card, "build", "redo")["current"], "build")
 
     def test_worktree_still_works_after_the_rename(self):
         clone = os.path.join(self.desk, "clone")

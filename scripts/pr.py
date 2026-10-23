@@ -64,7 +64,7 @@ def open_pr(card):
         sys.exit(str(e))
     except (OSError, KeyError):
         sys.exit(f"repo '{repo}' not found in {repos_file}.")
-    branch = worktree.branch_name(card)
+    branch = run(["git", "-C", wt, "branch", "--show-current"])  # what the worktree is on, not a recount of folders
     run(["git", "-C", wt, "push", "-u", "origin", branch])
     url = run(["gh", "pr", "list", "--head", branch, "--json", "url", "--jq", ".[0].url // empty"], cwd=wt)
     if not url:

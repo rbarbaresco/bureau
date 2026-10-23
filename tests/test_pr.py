@@ -75,6 +75,7 @@ class PrTest(unittest.TestCase):
         write(os.path.join(wt, "b.py"), "y\n")
         git(wt, "add", "-A")
         git(wt, "commit", "-qm", "second run")
+        shutil.rmtree(os.path.join(self.tmp, "desk", "ABC-1.cancelled"))  # the folder count must not matter now
         r = self.run_pr()
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("--head bureau/ABC-1-2", self.read("args"))
