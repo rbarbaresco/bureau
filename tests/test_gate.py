@@ -128,6 +128,15 @@ class GateTest(unittest.TestCase):
         self.assertIn("Card is done", self.edit())
         self.assertIn("Card is done", self.run_gate("Bash", command=f"cd {self.wt} && git push origin b"))
 
+    def test_followup_after_pr_edits_until_done(self):
+        steps = STEPS + [{"id": "pr", "gate": "approve"}, {"id": "followup", "gate": "approve", "writes_code": True}]
+        self.state({"current": "followup", "steps": steps})
+        self.approve("plan", "build", "pr")
+        self.ack()
+        self.assertIsNone(self.edit())
+        self.state({"current": "done", "steps": steps})
+        self.assertIn("Card is done", self.edit())
+
     def test_read_only_quoted_text(self):
         self.assertIsNone(self.run_gate("Bash", command=f"rg 'a>b' \"<c>\" {self.wt}"))
         self.assertIsNotNone(self.run_gate("Bash", command=f"echo x > {self.wt}/f"))

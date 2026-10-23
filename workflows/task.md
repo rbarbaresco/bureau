@@ -42,3 +42,4 @@ gate: approve
 
 Draft the PR title and body (summary, not the case). Show it to the human.
 Write the draft to pr.md: first line the title, then the body, then the `git diff --stat` file list. `/approve` on this step runs `scripts/pr.py`, which pushes the branch, opens the draft PR and appends its link to pr.md.
+If the repo needs the PR number in a follow-up commit, a `followup` step goes after this one (README, *A follow-up that needs the PR number*).
