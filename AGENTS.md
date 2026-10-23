@@ -9,6 +9,9 @@ Start with `/work`. State lives in `desk/<card-id>/`; reusable parts live in `wo
   `python3 hooks/rules.py desk/<card-id>/worktrees/<repo>` and follow what it prints (repo
   instruction files, their parent folders' files, and these base rules). The gate hook denies
   code edits until you have; it also denies them after any of those files change.
+- **Never edit the Bureau checkout itself.** A session that will change code starts with `/work` and works
+  only in that card's worktree (`desk/<card-id>/worktrees/<repo>`). Two sessions in the root share one working tree.
+  The gate hook does not enforce this outside worktrees; it is on you.
 - **Never approve your own gate.** Only the human's `/approve` records approval. Do not write
   `approvals.json`. After a gated step finishes, set `awaiting` in `state.json` to that step's id and stop.
 - **One writer per unit of work.** Read-only roles (review, QA, triage) run as subagents; give
