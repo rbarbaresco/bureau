@@ -92,6 +92,22 @@ class TransitionTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             desk.reject(self.card, "nope", "x")
 
+    def test_done_card_reopens_at_added_rework_steps(self):
+        # the /rework flow: steps added after the last one of a finished run, then rejected back to the first
+        for _ in ("plan", "build"):
+            desk.finish(self.card)
+            self.approve("plan", "build")
+            desk.advance(self.card)
+        desk.finish(self.card)
+        self.assertEqual(desk.load(self.card)["current"], "done")
+        desk.add(self.card, "review", {"id": "feedback", "gate": "approve"})
+        desk.add(self.card, "feedback", {"id": "apply", "gate": "approve", "writes_code": True})
+        self.approve("plan", "build", "feedback")
+        s = desk.reject(self.card, "feedback", "PR feedback")
+        self.assertEqual((s["current"], s["awaiting"]), ("feedback", None))
+        with open(os.path.join(self.card, "approvals.json")) as f:
+            self.assertEqual(json.load(f), {"plan": True, "build": True})
+
     def test_add_and_skip(self):
         s = desk.add(self.card, "plan", {"id": "design", "gate": "approve"})
         self.assertEqual([x["id"] for x in s["steps"]], ["plan", "design", "build", "review"])

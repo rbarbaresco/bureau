@@ -124,6 +124,11 @@ class SessionsTest(unittest.TestCase):
         self.assertEqual(sessions.last(self.card)["why"], "owner-dead")
         self.assertEqual(len(sessions.events(self.card)), 2)
 
+    def test_rework_claims_like_work(self):
+        self.own("s1", 2 ** 22 + 1)
+        self.hook("owner.py", {"prompt": "/rework ABC-1", "session_id": "s2"}, self.claude())
+        self.assertEqual(sessions.status(self.card, "s2"), "mine")
+
     def test_work_blocked_by_live_owner_even_with_take(self):
         self.own("s1", self.claude())
         out = self.hook("owner.py", {"prompt": "/work ABC-1 --take", "session_id": "s2"}, self.claude())

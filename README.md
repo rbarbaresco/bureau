@@ -18,6 +18,7 @@ What you get:
 | Tool | Use it to |
 |---|---|
 | `/work <ref>` | Start or resume a card and run its workflow |
+| `/rework <card>` | Address review comments on a finished card's open draft PR (see *After the PR is open*) |
 | `/approve` | Pass a gate (only you can; the agent cannot) |
 | `/consult` (in plain words: "ask the architect…") | Get a persona's advice on the current card |
 | `/issue` (in plain words: "write an issue for this") | Draft a GitHub issue and file it after you approve |
@@ -155,7 +156,7 @@ In `small`, `understand` replaces the separate plan: your approval there is what
 
 **Persona.** A markdown file in `personas/` describing a role: what it cares about and how it reports. `writer` personas work in your session. `read-only` personas run as subagents that cannot edit files. Shipped: `architect`, `staff-engineer`, `qa`, `journalist`.
 
-**Card ownership.** One live session owns a card. `/work <id>` from a second session is blocked and there is no override: close the first session. An owner that ended (`hooks/session_end.py`) or died (its process is gone) is taken over, and you see "Took over…". The claims are an append-only log in `desk/<card>/sessions.jsonl`, written only by hooks (`hooks/owner.py` on `/work`, `hooks/session_end.py` on exit; both use `hooks/sessions.py`), with `sessions.lock` serializing the writes. The gate also denies edits from any session that does not own the card.
+**Card ownership.** One live session owns a card. `/work <id>` (or `/rework <id>`) from a second session is blocked and there is no override: close the first session. An owner that ended (`hooks/session_end.py`) or died (its process is gone) is taken over, and you see "Took over…". The claims are an append-only log in `desk/<card>/sessions.jsonl`, written only by hooks (`hooks/owner.py` on `/work` and `/rework`, `hooks/session_end.py` on exit; both use `hooks/sessions.py`), with `sessions.lock` serializing the writes. The gate also denies edits from any session that does not own the card.
 
 **Desk.** One folder per card, never committed:
 
@@ -195,6 +196,8 @@ If any of those files change, the hash no longer matches and the rules must be l
 **3. One session per card.** The same hook (`hooks/gate.py`) denies any edit or non-read-only Bash command on a card that another live session owns, or that has no live owner (run `/work <id>` to take over). See *Card ownership* above.
 
 **After the last step.** When a card is `done`, the gate denies every code edit in the worktree ("Card is done: no more code changes"). The PR is opened by `scripts/pr.py`, which `/approve` on the `pr` step runs. It pushes the branch without force, opens a draft PR, and refuses a worktree with uncommitted changes, so commit during the code step.
+
+**After the PR is open.** When reviewers comment, run `/rework <card-id>`. It first runs `scripts/rework.py`, which refuses (and names the command to use instead, usually `/work <card-id>`) unless the card exists in your `desk/`, is `done` with its PR opened, still has a worktree or the `bureau/<card>` branch, and the PR is open with unresolved threads or new comments. So it will not start or continue a task, and it does nothing for a card you do not have locally (for example a teammate's PR): start those with `/work <ref>`. If the checks pass, it adds three steps and reopens the card: `feedback` (gate: rates each comment as valid, already addressed, out of scope or wrong, proposes change, reply, ask or skip, and drafts the replies), `apply` (gate: makes the approved changes, pushes without force, then posts the approved replies) and `rework-review` (QA). `/approve` on `feedback` approves the code changes and the replies exactly as written. A second round numbers the ids (`feedback-2`, …). Merging stays yours.
 
 **A follow-up that needs the PR number.** Some repos want an entry (a changelog fragment) named after the PR number, which exists only once `pr` is approved. The gate does not make an exception for that. Add a gated code step after `pr`: `desk.py add desk/<card> pr '{"id":"followup","gate":"approve","persona":"staff-engineer","writes_code":true}'`. After `/approve` on `pr`, the card moves to `followup` instead of `done`; the agent reads the PR link from `pr.md`, makes the change, commits and pushes (no force), and you `/approve` once more. `pr.py` pushes only once, so the step pushes itself. Without that step, such an edit is yours to make after the PR opens.
 
@@ -265,18 +268,20 @@ Anything personal (a persona with your company's conventions, a private workflow
 | `.claude/skills/work` | `/work`: intake, overview, workflow choice, the run loop |
 | `.claude/skills/approve` | `/approve`: continues after the hook has recorded your approval |
 | `.claude/skills/consult` | Ask a persona a question about the current card |
+| `.claude/skills/rework` | `/rework`: rework a finished card from its PR's review comments |
 | `.claude/skills/issue` | Draft a GitHub issue in the repo's house style, file it after you approve |
 | `.claude/settings.json` | Registers the four hooks |
 | `hooks/gate.py` | Denies code writes until the gate, the rules and card ownership are satisfied |
 | `hooks/rules.py` | Collects and acknowledges the repo's instruction files |
 | `hooks/approve.py` | Records `/approve` from your own prompt |
-| `hooks/owner.py` | Claims a card for the session that runs `/work <id>`, or blocks it if another live session holds it |
+| `hooks/owner.py` | Claims a card for the session that runs `/work <id>` or `/rework <id>`, or blocks it if another live session holds it |
 | `hooks/session_end.py` | Frees the cards a session owns when it ends |
 | `hooks/sessions.py` | Helper for the three above: reads and writes `sessions.jsonl` |
 | `scripts/desk.py` | Card state and transitions: `init finish advance revise reject add skip list` |
 | `scripts/workflow.py` | Parses workflows: `list show start` |
 | `scripts/worktree.py` | Creates a card's worktree from `repos.yaml` |
 | `scripts/pr.py` | Pushes the branch, opens the draft PR from `pr.md`, appends the link to it |
+| `scripts/rework.py` | Checks a done card has an open PR with feedback, prints the review threads and comments |
 | `scripts/ui.py` | Read-only card viewer (see [Viewing cards](#viewing-cards)) |
 | `workflows/`, `personas/` | The shipped workflows and personas, yours to extend |
 | `AGENTS.md` | Base rules loaded for every card |

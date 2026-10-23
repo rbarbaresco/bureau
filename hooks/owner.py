@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""UserPromptSubmit hook: `/work <ref>` claims the card for this session.
+"""UserPromptSubmit hook: `/work <ref>` (or `/rework <ref>`) claims the card for this session.
 
 A card held by another live session is refused (no override). A free card, or one whose owner
 ended or died, is taken over, and the new session is told about the past ones.
@@ -28,7 +28,7 @@ def resolve(ref):
 
 def main():
     ev = json.load(sys.stdin)
-    m = re.match(r"\s*/work\s+(\S+)", ev.get("prompt", ""))
+    m = re.match(r"\s*/(?:re)?work\s+(\S+)", ev.get("prompt", ""))
     card = m and resolve(m[1])
     if not card:
         return
