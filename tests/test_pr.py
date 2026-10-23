@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -63,6 +64,21 @@ class PrTest(unittest.TestCase):
     def read(self, name):
         with open(os.path.join(self.tmp, name)) as f:
             return f.read()
+
+    def test_a_rerun_of_a_cancelled_id_pushes_the_numbered_branch(self):
+        os.makedirs(os.path.join(self.tmp, "desk", "ABC-1.cancelled"))
+        shutil.rmtree(os.path.join(self.card, "worktrees"))
+        git(self.clone, "worktree", "prune")
+        git(self.clone, "branch", "-D", "bureau/ABC-1")
+        wt = subprocess.run([sys.executable, WORKTREE, self.card, "clone", "--repos", self.repos],
+                            check=True, capture_output=True, text=True).stdout.splitlines()[-1]
+        write(os.path.join(wt, "b.py"), "y\n")
+        git(wt, "add", "-A")
+        git(wt, "commit", "-qm", "second run")
+        r = self.run_pr()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("--head bureau/ABC-1-2", self.read("args"))
+        self.assertIn("bureau/ABC-1-2", git(os.path.join(self.tmp, "origin.git"), "branch"))
 
     def test_pushes_creates_draft_against_repo_base_and_records_link(self):
         r = self.run_pr()

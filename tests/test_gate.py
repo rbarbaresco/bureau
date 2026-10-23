@@ -142,6 +142,15 @@ class GateTest(unittest.TestCase):
         self.assertIn("Card is done", self.edit())
         self.assertIn("Card is done", self.run_gate("Bash", command=f"cd {self.wt} && git push origin b"))
 
+    def test_cancelled_card_denies_code_changes(self):
+        self.state({"current": "cancelled", "steps": STEPS})
+        self.approve("plan", "build")
+        self.assertIn("Card is cancelled", self.edit())
+
+    def test_agent_may_run_desk_cancel(self):
+        self.state({"current": "plan", "steps": STEPS})
+        self.assertIsNone(self.run_gate("Bash", command=f"python3 {LINK}/scripts/desk.py cancel {self.card} 'not needed'"))
+
     def test_followup_after_pr_edits_until_done(self):
         steps = STEPS + [{"id": "pr", "gate": "approve"}, {"id": "followup", "gate": "approve", "writes_code": True}]
         self.state({"current": "followup", "steps": steps})

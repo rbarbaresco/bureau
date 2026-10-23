@@ -115,13 +115,14 @@ What happens next:
 2. **Overview.** You get about ten lines: whether the card still holds (valid, already fixed, nitpick…), what is asked, acceptance criteria, what is unclear, the likely repo, size and risk.
 3. **Workflow.** Bureau picks the best match from `workflows/` and says why, or proposes a custom step list. You accept it or edit it ("skip review", "add a design step before plan", "make plan use the architect"). Nothing starts until you confirm.
 4. **The run.** Bureau does one step at a time and writes an artifact for each (`plan.md`, `fix.md`…). At a gated step it stops, summarizes the artifact and waits.
-5. **At a gate you have three answers:**
+5. **At a gate you have four answers:**
 
    | You type | Result |
    |---|---|
    | `/approve` | The gate is recorded and the run moves to the next step |
    | Feedback in plain words | The same step runs again; the old artifact is kept as `plan.v1.md` and your words as `plan.feedback-1.md` |
    | "Go back to plan, the approach is wrong" | The run returns to that step; later approvals are cleared and your reason is kept as `reject-1.md` |
+| "Cancel this" (at any step, gate or not) | The run stops for good (`desk.py cancel`). The folder is renamed to `desk/<card-id>.cancelled` (`-2`, `-3` on repeats), so `/work <card-id>` starts a fresh intake. Worktrees and the branch are kept for you to clean up. A new run of the same id gets branch `bureau/<card-id>-2` (then `-3`). Nothing is written to the tracker |
 
 Every `/work` and `/approve` reply ends with a **Next** block: the command to run (`/approve <card-id>`), the other answers you can give (feedback, "go back to <step>") and what is needed from you (the artifact to read, its open questions). `desk.py finish` prints it for a gated step (`next_block` in `scripts/desk.py`); the `work` and `approve` skills write it in the other states.
 
@@ -273,9 +274,9 @@ Anything personal (a persona with your company's conventions, a private workflow
 | `hooks/owner.py` | Claims a card for the session that runs `/work <id>`, or blocks it if another live session holds it |
 | `hooks/session_end.py` | Frees the cards a session owns when it ends |
 | `hooks/sessions.py` | Helper for the three above: reads and writes `sessions.jsonl` |
-| `scripts/desk.py` | Card state and transitions: `init finish advance revise reject add skip list` |
+| `scripts/desk.py` | Card state and transitions: `init finish advance revise reject add skip cancel list` |
 | `scripts/workflow.py` | Parses workflows: `list show start` |
-| `scripts/worktree.py` | Creates a card's worktree from `repos.yaml` |
+| `scripts/worktree.py` | Creates a card's worktree from `repos.yaml`; `branch_name` gives its branch |
 | `scripts/pr.py` | Pushes the branch, opens the draft PR from `pr.md`, appends the link to it |
 | `scripts/ui.py` | Read-only card viewer (see [Viewing cards](#viewing-cards)) |
 | `workflows/`, `personas/` | The shipped workflows and personas, yours to extend |

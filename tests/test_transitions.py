@@ -103,6 +103,68 @@ class TransitionTest(unittest.TestCase):
             desk.add(self.card, "plan", {"id": "build"})  # duplicate id
 
 
+class CancelTest(unittest.TestCase):
+    def setUp(self):
+        self.desk = tempfile.mkdtemp()
+        self.card = os.path.join(self.desk, "ABC-1")
+        desk.init(self.card, STEPS)
+
+    def test_cancel_records_reason_clears_awaiting_and_renames_the_folder(self):
+        desk.finish(self.card)  # plan is gated: awaiting
+        new = desk.cancel(self.card, "not needed")
+        self.assertEqual(new, os.path.join(self.desk, "ABC-1.cancelled"))
+        self.assertFalse(os.path.exists(self.card))
+        s = desk.load(new)
+        self.assertEqual((s["current"], s["awaiting"], s["cancelled"]["reason"]), ("cancelled", None, "not needed"))
+        self.assertTrue(s["cancelled"]["at"])
+        self.assertIn("cancelled", desk.list_cards(self.desk)[0])
+
+    def test_repeat_cancels_of_the_same_id_get_a_counter(self):
+        desk.cancel(self.card, "a")
+        desk.init(self.card, STEPS)
+        self.assertEqual(desk.cancel(self.card, "b"), os.path.join(self.desk, "ABC-1.cancelled-2"))
+        desk.init(self.card, STEPS)
+        self.assertEqual(desk.cancel(self.card, "c"), os.path.join(self.desk, "ABC-1.cancelled-3"))
+
+    def test_cancelled_and_done_cards_refuse_every_transition(self):
+        done = os.path.join(self.desk, "ABC-2")
+        desk.init(done, STEPS)
+        s = desk.load(done)
+        s["current"] = "done"
+        desk.save(done, s)
+        with self.assertRaises(ValueError):
+            desk.cancel(done, "x")
+        new = desk.cancel(self.card, "x")
+        for call in (lambda: desk.cancel(new, "y"), lambda: desk.finish(new), lambda: desk.advance(new),
+                     lambda: desk.revise(new, "f"), lambda: desk.reject(new, "plan", "r"),
+                     lambda: desk.add(new, "plan", {"id": "x"}), lambda: desk.skip(new, "review")):
+            with self.assertRaises(ValueError):
+                call()
+        self.assertEqual(desk.load(new)["current"], "cancelled")
+
+    def test_worktree_still_works_after_the_rename(self):
+        clone = os.path.join(self.desk, "clone")
+        subprocess.run(["git", "init", "-q", "-b", "main", clone], check=True)
+        subprocess.run(["git", "-C", clone, "-c", "user.name=t", "-c", "user.email=t@t",
+                        "commit", "-q", "--allow-empty", "-m", "init"], check=True)
+        wt = os.path.join(self.card, "worktrees", "clone")
+        subprocess.run(["git", "-C", clone, "worktree", "add", "-q", "-b", "bureau/ABC-1", wt], check=True)
+        new = desk.cancel(self.card, "x")
+        r = subprocess.run(["git", "-C", os.path.join(new, "worktrees", "clone"), "status", "-sb"],
+                           capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("bureau/ABC-1", r.stdout)  # the branch keeps its name
+
+    def test_next_block_and_cli_name_the_cancelled_card(self):
+        new = desk.cancel(self.card, "x")
+        self.assertIn("cancelled", desk.next_block(new, desk.load(new)))
+        card = os.path.join(self.desk, "ABC-9")
+        desk.init(card, STEPS)
+        out = subprocess.run([sys.executable, os.path.join(os.path.dirname(desk.__file__), "desk.py"), "cancel", card, "why"],
+                             capture_output=True, text=True, check=True).stdout
+        self.assertIn("ABC-9.cancelled", out)
+
+
 class ListTest(unittest.TestCase):
     def test_list_finds_nested_runs_and_skips_worktrees(self):
         d = tempfile.mkdtemp()
