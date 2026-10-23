@@ -97,8 +97,12 @@ def check(card, repo, session, cmd=None):
     approved = load(os.path.join(card, "approvals.json"))
     if current == "done":
         deny("Card is done: no more code changes. Open the PR with scripts/pr.py.")
+    if not os.path.exists(os.path.join(card, "state.json")):
+        deny(f"{card} has no workflow yet (intake is not finished). Confirm a workflow with the user, then run: "
+             f"python3 {rules.BUREAU}/scripts/workflow.py start <name> {card}")
     if current not in ids:
-        deny(f"No valid current step in {card}/state.json; start the run through /work.")
+        deny(f"Current step '{current}' in {card}/state.json is not one of its steps, or the file is unreadable. "
+             f"If it lists steps: python3 {rules.BUREAU}/scripts/desk.py reject {card} <step> '<reason>'; else fix the file by hand.")
     idx = ids.index(current)
     if not steps[idx].get("writes_code"):
         if cmd is not None and test_allowed(cmd, repo):
