@@ -58,7 +58,7 @@ Bureau runs on Linux. Card ownership (see [How it works](#how-it-works)) finds t
    cd bureau
    ```
 
-2. **Register your repositories.** Bureau never clones for you. It creates worktrees (extra working folders of a repo, each on its own branch) from clones you already have. Tell it where they are:
+2. **Register your repositories.** Bureau never clones for you. It creates worktrees (extra working folders of a repo, each on its own branch) from clones you already have (it also adds `.coverage*` to each clone's `.git/info/exclude`, so a killed test run cannot block a push). Tell it where they are:
 
    ```sh
    cp repos.yaml.sample repos.yaml
