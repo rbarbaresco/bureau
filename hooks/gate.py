@@ -95,6 +95,8 @@ def check(card, repo, session, cmd=None):
     steps, current = state.get("steps", []), state.get("current")
     ids = [s["id"] for s in steps]
     approved = load(os.path.join(card, "approvals.json"))
+    if current == "cancelled":
+        deny("Card is cancelled: no more changes.")
     if current == "done":
         deny("Card is done: no more code changes. Open the PR with scripts/pr.py.")
     if not os.path.exists(os.path.join(card, "state.json")):
@@ -117,7 +119,7 @@ def check(card, repo, session, cmd=None):
 
 
 DESK = re.compile(  # bare words and single-quoted text only: nothing for bash to expand, split or comment out
-    r"[ \t]*python3?[ \t]+(?P<script>[\w./][\w./-]*)[ \t]+(?P<sub>init|list|finish|advance|revise|reject|add|skip)"
+    r"[ \t]*python3?[ \t]+(?P<script>[\w./][\w./-]*)[ \t]+(?P<sub>init|list|finish|advance|revise|reject|add|skip|cancel)"
     r"(?:[ \t]+(?P<card>[\w./-]+)(?:[ \t]+(?:'[^']*'|[\w.-]+))*)?[ \t]*")
 
 

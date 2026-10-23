@@ -59,6 +59,8 @@ For the current step in `state.json`:
      **Stop.** Do not write `approvals.json` and do not call `advance` until the user has approved.
 6. Human outcomes at a gate: `/approve` → the approve skill advances. Feedback → `python3 scripts/desk.py revise desk/<card-id> '<feedback>'`
    and redo the step. "Go back to X" → `desk.py reject desk/<card-id> <step> '<reason>'`.
+   "Cancel" / "give up" (any step, gated or not) → `desk.py cancel desk/<card-id> '<reason>'`: the card is cancelled for good and its folder renamed to `<card-id>.cancelled`.
+   Relay what it printed (new path, kept worktrees and branches) and stop; do not touch the tracker.
    Add or skip steps on request: `desk.py add desk/<card-id> <after-step> '<step-json>'`, `desk.py skip desk/<card-id> <step>`.
 7. When `current` is `done`: summarize what was delivered and where (worktree paths, branches, PR link from `pr.md`). If `pr.md` has no `## Opened` section, the PR was not opened: run `python3 scripts/pr.py desk/<card-id>` (it works on a done card).
 
@@ -78,6 +80,7 @@ the artifact's `## Open questions` when there are any. A failed or blocked state
 | Step blocked (hook denied an edit, no card awaiting) | the command the error names | what the error says is missing |
 | Fetch failed or tool missing | none | paste the ticket text |
 | Run done | none | merge the draft PR (yours) |
+| Card cancelled | none | nothing; clean up the kept worktrees and branch if wanted |
 
 ## Rules
 
