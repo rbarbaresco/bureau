@@ -32,7 +32,10 @@ def read_repos(path):
 
 
 def add(card_dir, name, repos_file):
-    repos = read_repos(repos_file)
+    try:
+        repos = read_repos(repos_file)
+    except FileNotFoundError as e:
+        sys.exit(str(e))
     if name not in repos:
         sys.exit(f"unknown repo '{name}'; known: {', '.join(repos) or 'none'}")
     clone, base = repos[name]["path"], repos[name].get("base", "main")
@@ -58,7 +61,4 @@ if __name__ == "__main__":
     repos_file = a[a.index("--repos") + 1] if "--repos" in a else os.path.join(BUREAU, "repos.yaml")
     if len(a) < 2:
         sys.exit(__doc__)
-    try:
-        print(add(a[0], a[1], repos_file))
-    except FileNotFoundError as e:
-        sys.exit(str(e))
+    print(add(a[0], a[1], repos_file))
