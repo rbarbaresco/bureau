@@ -81,6 +81,14 @@ class GateTest(unittest.TestCase):
         write(os.path.join(self.wt, "extra.md"), "changed rule\n")
         self.assertIn("changed", self.edit())
 
+    def test_no_state_json_names_workflow_start(self):
+        os.remove(os.path.join(self.card, "state.json"))
+        self.assertIn("workflow.py start", self.edit())
+
+    def test_unknown_current_step_names_reject(self):
+        self.state({"current": "zzz", "steps": STEPS})
+        self.assertIn("desk.py reject", self.edit())
+
     def test_non_build_step_denied(self):
         self.state({"current": "plan", "steps": STEPS})
         self.approve("plan")
