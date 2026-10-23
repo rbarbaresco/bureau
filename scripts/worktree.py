@@ -40,6 +40,14 @@ def add(card_dir, name, repos_file):
                             capture_output=True).returncode == 0
     cmd = ["git", "-C", clone, "worktree", "add"] + ([wt, branch] if exists else ["-b", branch, wt, base])
     subprocess.run(cmd, check=True)
+    # a killed pytest run leaves .coverage.* behind and the untracked files block the push; the exclude file is
+    # shared by the whole clone, so this also hides them in the clone's other worktrees
+    path = subprocess.run(["git", "-C", wt, "rev-parse", "--path-format=absolute", "--git-path", "info/exclude"],
+                          check=True, capture_output=True, text=True).stdout.strip()
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    have = open(path).read().splitlines() if os.path.exists(path) else []
+    with open(path, "a") as f:
+        f.writelines(p + "\n" for p in (".coverage", ".coverage.*") if p not in have)
     return wt
 
 
