@@ -92,21 +92,24 @@ class ReworkTest(unittest.TestCase):
             write(os.path.join(self.card, "state.json"), json.dumps({"card": "ABC-1", "current": step, "steps": [{"id": step}]}))
             self.assertEqual(self.run_rework().returncode, 0, step)
 
-    def test_answered_thread_is_kept_and_flagged_next_to_an_unanswered_one(self):
+    def test_thread_the_author_spoke_last_in_is_flagged_and_still_feedback(self):
         self.put("threads", threads(thread(replied=True), thread()))
         out = json.loads(self.run_rework().stdout)
-        self.assertEqual([t["answered"] for t in out["threads"]], [True, False])
+        self.assertEqual([t["author_last"] for t in out["threads"]], [True, False])
 
-    def test_only_answered_threads_is_not_feedback(self):
+    def test_author_only_replying_will_do_still_starts_a_rework(self):
         self.put("threads", threads(thread(replied=True)))
-        self.refused("all answered", "example.test/pull/7")
+        self.assertEqual(self.run_rework().returncode, 0)
 
-    def test_answered_thread_is_kept_when_a_new_comment_makes_it_feedback(self):
-        self.put("threads", threads(thread(replied=True)))
+    def test_truncated_thread_does_not_claim_the_author_spoke_last(self):
+        t = thread(replied=True)
+        t["comments"]["totalCount"] = 25
+        self.put("threads", threads(t))
+        self.assertFalse(json.loads(self.run_rework().stdout)["threads"][0]["author_last"])
+
+    def test_new_top_level_comment_carries_its_url(self):
         self.put("view", {**VIEW, "comments": [{"author": {"login": "bob"}, "body": "also this", "createdAt": "2026-01-05T00:00:00Z", "url": "c"}]})
-        out = json.loads(self.run_rework().stdout)
-        self.assertTrue(out["threads"][0]["answered"])
-        self.assertEqual(out["comments"][0]["url"], "c")
+        self.assertEqual(json.loads(self.run_rework().stdout)["comments"][0]["url"], "c")
 
     def test_deleted_account_comment_does_not_crash(self):
         self.put("view", {**VIEW, "comments": [{"author": None, "body": "ghost", "createdAt": "2026-01-05T00:00:00Z"}]})

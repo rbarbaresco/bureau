@@ -5,8 +5,9 @@ Usage: rework.py <card-dir>
 Exits non-zero, saying what to run instead, unless the card exists locally, is done with its PR opened,
 still has a worktree (or a branch to recreate one from), the PR is open and has review feedback.
 Prints {"pr", "repo", "threads", "comments"}; read-only, safe to run again, also while a rework round is open.
-Each unresolved thread carries "answered": true when its last comment is the PR author's, so the feedback step
-can say "already answered" instead of dropping it; only unanswered threads or new comments count as feedback.
+Each unresolved thread carries "author_last": true when its last comment is the PR author's (a hint for the
+feedback step, e.g. "will do" is a commitment to act, "fixed in abc" may be skippable). It does not filter: every
+unresolved thread counts as feedback, since an author's reply often starts the rework.
 """
 import json
 import os
@@ -83,10 +84,11 @@ def rework(card):
                 if c["body"].strip() and (c.get("createdAt") or c.get("submittedAt") or "") > pushed
                 and login(c) != me]
     for t in threads:
-        t["answered"] = bool(t["comments"]["nodes"]) and login(t["comments"]["nodes"][-1]) == me
-    if not comments and all(t["answered"] for t in threads):
-        sys.exit(f"No new comments and no unanswered thread ({len(threads)} unresolved, all answered): "
-                 f"no review to check on {p['url']}.")
+        c = t["comments"]
+        # a thread past the 20-comment cap does not show its real last comment, so claim nothing
+        t["author_last"] = c["totalCount"] == len(c["nodes"]) and bool(c["nodes"]) and login(c["nodes"][-1]) == me
+    if not threads and not comments:
+        sys.exit(f"No unresolved threads or new comments: no review to check on {p['url']}.")
     return {"pr": p, "repo": repo, "threads": threads, "comments": comments,
             "truncated": gql["totalCount"] > len(gql["nodes"])}
 
