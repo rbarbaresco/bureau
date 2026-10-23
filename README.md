@@ -1,6 +1,6 @@
 # Bureau
 
-Bureau runs a work item (a Jira ticket, a GitHub issue, a Sentry issue, a pasted user story) through a **workflow**: an ordered list of steps such as triage, plan, build, review and PR. Each step is done by a **persona** (architect, staff engineer, QA…), and any step can be a **gate**, meaning the agent stops and waits until you approve.
+Bureau runs a work item (a Jira ticket, a GitHub issue, a Sentry issue, a pasted user story) through a **workflow**: an ordered list of steps such as plan, build, review and PR. Each step is done by a **persona** (architect, staff engineer, QA…), and any step can be a **gate**, meaning the agent stops and waits until you approve.
 
 It runs inside a [Claude Code](https://claude.com/claude-code) session. There is no database and no web service: it is a folder of skills, markdown files, a few small Python scripts and four hooks. An optional read-only local viewer, `scripts/ui.py`, shows your cards in a browser (see [Viewing cards](#viewing-cards)).
 
@@ -8,7 +8,7 @@ It runs inside a [Claude Code](https://claude.com/claude-code) session. There is
 you:    /work https://github.com/acme/shop/issues/412
 bureau: [reads the issue, shows a short overview, proposes the "bugfix" workflow]
 you:    looks good
-bureau: [triages, writes a plan, stops]  → you read plan.md, then type /approve
+bureau: [reproduces the bug, writes a plan, stops]  → you read plan.md, then type /approve
 bureau: [creates a worktree, writes the failing test and the fix, stops]  → /approve
 bureau: [reviews the diff with a read-only QA persona, drafts the PR, stops]  → /approve
 ```
@@ -114,7 +114,7 @@ What happens next:
 1. **Intake.** The card is saved to `desk/<card-id>/card.md`.
 2. **Overview.** You get about ten lines: whether the card still holds (valid, already fixed, nitpick…), what is asked, acceptance criteria, what is unclear, the likely repo, size and risk.
 3. **Workflow.** Bureau picks the best match from `workflows/` and says why, or proposes a custom step list. You accept it or edit it ("skip review", "add a design step before plan", "make plan use the architect"). Nothing starts until you confirm.
-4. **The run.** Bureau does one step at a time and writes an artifact for each (`triage.md`, `plan.md`…). At a gated step it stops, summarizes the artifact and waits.
+4. **The run.** Bureau does one step at a time and writes an artifact for each (`plan.md`, `fix.md`…). At a gated step it stops, summarizes the artifact and waits.
 5. **At a gate you have three answers:**
 
    | You type | Result |
@@ -143,7 +143,7 @@ Describe a problem or an idea ("write an issue for this") and the `issue` skill 
 
 | Workflow | Use when | Steps (gates in bold) |
 |---|---|---|
-| `bugfix` | A defect you can reproduce or locate in one repo | triage → **plan** → **fix** → review → **pr** |
+| `bugfix` | A defect you can reproduce or locate in one repo | **plan** → **fix** → review → **pr** |
 | `task` | A well-defined story in one repo | understand → **plan** → **build** → review → **pr** |
 | `small` | A small, low-risk change in one repo with an obvious approach (docs, config, renames) | **understand** → **build** → review → **pr** |
 
@@ -166,7 +166,7 @@ desk/SHOP-42/
   state.json         where the run is: current step, awaiting approval
   approvals.json     which gates you approved (written only by the /approve hook)
   ack.json           which repo rules were loaded (written by hooks/rules.py)
-  triage.md plan.md  one artifact per finished step
+  plan.md fix.md     one artifact per finished step
   plan.v1.md         an artifact replaced by a redo
   plan.feedback-1.md your feedback that caused the redo (desk.py revise)
   reject-1.md        why you sent the run back to an earlier step (desk.py reject)

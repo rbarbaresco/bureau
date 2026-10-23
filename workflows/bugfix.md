@@ -2,19 +2,13 @@
 name: bugfix
 use_when: A defect with a symptom you can reproduce or locate in one repo (error report, failing behaviour, Sentry issue). Not for new behaviour or multi-repo changes.
 ---
-## triage
-persona: staff-engineer
-gate: none
-
-Read card.md. Find the repo and the failing code path. Reproduce the symptom, or say why you cannot.
-Write triage.md: symptom, reproduction, suspected cause, blast radius, anything missing from the card.
-
 ## plan
 persona: staff-engineer
 gate: approve
 
-Write plan.md: root cause, the smallest fix that closes it, who else calls the code being changed,
-and the test that fails before and passes after. Stop here; the human approves before any code.
+Find the repo and the failing code path. Reproduce the symptom, or say why you cannot.
+Write plan.md: reproduction, root cause, the smallest fix that closes it, who else calls the code being changed
+(blast radius), anything missing from the card, and the test that fails before and passes after. Stop here; the human approves before any code.
 End the artifact with `## Open questions` (or "none").
 
 ## fix

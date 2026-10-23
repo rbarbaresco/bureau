@@ -44,7 +44,7 @@ class WorkflowTest(unittest.TestCase):
         card = os.path.join(tempfile.mkdtemp(), "ABC-1")
         workflow.start("bugfix", card)
         s = desk.load(card)
-        self.assertEqual((s["workflow"], s["current"]), ("bugfix", "triage"))
+        self.assertEqual((s["workflow"], s["current"]), ("bugfix", "plan"))
         self.assertTrue(os.path.isfile(os.path.join(card, "workflow.md")))
         self.assertNotIn("instructions", s["steps"][0])
 
