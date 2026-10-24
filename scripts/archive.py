@@ -2,9 +2,11 @@
 """Move a finished card out of desk/ into archive/ (next to desk/) and remove its worktrees.
 
 Usage: archive.py <card-dir>
-Refuses, moving nothing, unless the card is `done`, is not held by another live session, is not
-already archived, and every worktree is clean with its branch pushed. Local branches are kept.
-Worktrees go first, so a failure leaves the card on the desk; running it again finishes the job.
+Refuses, moving nothing, unless the card is directly under desk/, `done`, not held by another live
+session, not already archived, and every worktree is clean with its branch pushed. Local branches are kept.
+Ignored files in a worktree (a local .env) are deleted with it. Worktrees go first, so a failure
+partway can leave the card on the desk with some worktrees already removed; running it again finishes the job.
+Archive dir: $BUREAU_ARCHIVE, else archive/ next to desk/ (scripts/ui.py reads the same).
 """
 import json
 import os
@@ -21,11 +23,11 @@ def git(wt, *args):
     return subprocess.run(["git", "-C", wt, *args], capture_output=True, text=True)
 
 
-def archive(card):
-    card = os.path.abspath(card)
-    cid, desk = os.path.basename(card), os.path.dirname(card)
-    if not re.fullmatch(r"[\w.-]+", cid) or cid in (".", ".."):
-        sys.exit(f"{card}: not a card directory.")
+def archive(card, desk=sessions.DESK):
+    card = os.path.realpath(card)
+    cid = os.path.basename(card)
+    if os.path.dirname(card) != os.path.realpath(desk) or not re.fullmatch(r"[\w.-]+", cid):
+        sys.exit(f"{card}: not a card directly under {desk}.")
     try:
         with open(os.path.join(card, "state.json")) as f:
             current = json.load(f).get("current")
@@ -33,7 +35,7 @@ def archive(card):
         sys.exit(f"{cid}: no readable state.json; only a done card can be archived.")
     if current != "done":
         sys.exit(f"{cid} is at step '{current}', not done; only a done card can be archived.")
-    dest = os.path.join(os.path.dirname(desk), "archive", cid)
+    dest = os.path.join(os.environ.get("BUREAU_ARCHIVE") or os.path.join(os.path.dirname(desk), "archive"), cid)
     if os.path.exists(dest):
         sys.exit(f"{dest} already exists.")
     e = sessions.last(card)
@@ -42,6 +44,8 @@ def archive(card):
     root = os.path.join(card, "worktrees")
     trees = sorted(os.path.join(root, d) for d in os.listdir(root)) if os.path.isdir(root) else []
     for wt in trees:
+        if os.path.realpath(git(wt, "rev-parse", "--show-toplevel").stdout.strip()) != os.path.realpath(wt):
+            sys.exit(f"{wt} is not a git worktree.")
         if git(wt, "status", "--porcelain").stdout.strip():
             sys.exit(f"uncommitted changes in {wt}: commit and push, or discard them.")
         ahead = git(wt, "rev-list", "--count", "@{u}..HEAD")
@@ -52,7 +56,11 @@ def archive(card):
         r = subprocess.run(["git", "-C", os.path.dirname(common), "worktree", "remove", wt], capture_output=True, text=True)
         if r.returncode:
             sys.exit(f"git worktree remove {wt} failed: {r.stderr.strip()}")
-    shutil.rmtree(root, ignore_errors=True)
+    if trees:
+        try:
+            os.rmdir(root)
+        except OSError:  # stray files: they move with the card
+            pass
     os.makedirs(os.path.dirname(dest), exist_ok=True)
     shutil.move(card, dest)
     return dest

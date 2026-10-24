@@ -11,7 +11,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import quote, unquote, urlsplit
 
 DESK = os.environ.get("BUREAU_DESK") or os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "desk")
-ARCHIVE = os.environ.get("BUREAU_ARCHIVE") or os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "archive")
+ARCHIVE = os.environ.get("BUREAU_ARCHIVE") or os.path.join(os.path.dirname(DESK), "archive")
 
 
 def _text(path):

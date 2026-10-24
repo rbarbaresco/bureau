@@ -37,14 +37,18 @@ class ArchiveTest(unittest.TestCase):
                 git("-C", wt, "push", "-q", "-u", "origin", "bureau/" + cid)
         return d
 
-    def refused(self, d):
-        with self.assertRaises(SystemExit):
-            archive.archive(d)
+    def run_archive(self, d):
+        return archive.archive(d, desk=self.desk)
+
+    def refused(self, d, msg=""):
+        with self.assertRaises(SystemExit) as cm:
+            self.run_archive(d)
+        self.assertIn(msg, str(cm.exception))
         self.assertTrue(os.path.isdir(d))
 
     def test_moves_card_and_removes_worktree(self):
         d = self.card()
-        dest = archive.archive(d)
+        dest = self.run_archive(d)
         self.assertEqual(dest, os.path.join(self.tmp, "archive", "A-1"))
         self.assertFalse(os.path.exists(d))
         self.assertTrue(os.path.exists(os.path.join(dest, "state.json")))
@@ -53,7 +57,7 @@ class ArchiveTest(unittest.TestCase):
         self.assertNotIn("A-1", listing)
 
     def test_card_without_worktree(self):  # e.g. a card that only produced a Confluence page
-        archive.archive(self.card(worktree=False))
+        self.run_archive(self.card(worktree=False))
         self.assertTrue(os.path.isdir(os.path.join(self.tmp, "archive", "A-1")))
 
     def test_refuses_not_done_and_no_state(self):
@@ -75,8 +79,36 @@ class ArchiveTest(unittest.TestCase):
         d = self.card()
         os.makedirs(os.path.join(self.tmp, "archive", "A-1"))
         self.refused(d)
+
+    def test_refuses_nested_and_outside_cards(self):
+        nested = os.path.join(self.desk, "group", "X")
+        os.makedirs(nested)
+        with open(os.path.join(nested, "state.json"), "w") as f:
+            json.dump({"current": "done"}, f)
+        self.refused(nested, "not a card directly under")
+        outside = os.path.join(self.tmp, "elsewhere", "Y")
+        os.makedirs(outside)
+        with open(os.path.join(outside, "state.json"), "w") as f:
+            json.dump({"current": "done"}, f)
+        self.refused(outside, "not a card directly under")
         with self.assertRaises(SystemExit):
-            archive.archive(os.path.join(self.desk, ".."))
+            self.run_archive(os.path.join(self.desk, ".."))
+
+    def test_refuses_non_git_dir_under_worktrees_before_removing_anything(self):
+        d = self.card()
+        os.makedirs(os.path.join(d, "worktrees", "zzz"))
+        self.refused(d, "not a git worktree")
+        self.assertTrue(os.path.isdir(os.path.join(d, "worktrees", "clone")))
+
+    def test_card_with_two_worktrees(self):
+        d = self.card()
+        wt2 = os.path.join(d, "worktrees", "other")
+        git("-C", self.clone, "worktree", "add", "-q", "-b", "bureau/A-1b", wt2, "main")
+        git("-C", wt2, "push", "-q", "-u", "origin", "bureau/A-1b")
+        dest = self.run_archive(d)
+        self.assertFalse(os.path.exists(os.path.join(dest, "worktrees")))
+        listing = subprocess.run(["git", "-C", self.clone, "worktree", "list"], capture_output=True, text=True).stdout
+        self.assertEqual(len(listing.strip().splitlines()), 1)
 
     def claimed(self, me):
         """A card claimed by a live process (the test runner's parent); `me` is the pid the script sees as its claude."""
@@ -94,7 +126,7 @@ class ArchiveTest(unittest.TestCase):
         self.refused(self.claimed(me=1))
 
     def test_archives_card_held_by_my_own_session(self):
-        archive.archive(self.claimed(me=os.getppid()))
+        self.run_archive(self.claimed(me=os.getppid()))
         self.assertTrue(os.path.isdir(os.path.join(self.tmp, "archive", "A-1")))
 
 

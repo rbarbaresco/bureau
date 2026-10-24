@@ -311,11 +311,11 @@ Anything personal (a persona with your company's conventions, a private workflow
 python3 scripts/ui.py [--port 8765]    # then open http://127.0.0.1:8765
 ```
 
-A read-only page that lists the cards in `desk/` (and, under Archived, those in `archive/`) and shows one card's state, approvals, text, artifacts and session log. It never writes. It binds `127.0.0.1` only and rejects requests whose `Host` header is not `127.0.0.1:<port>` or `localhost:<port>` (`scripts/ui.py:149`). It reads the files in `desk/`; their format is the contract.
+A read-only page that lists the cards in `desk/` (and, under Archived, those in `archive/`) and shows one card's state, approvals, text, artifacts and session log. It never writes. It binds `127.0.0.1` only and rejects requests whose `Host` header is not `127.0.0.1:<port>` or `localhost:<port>` (`Handler.do_GET`). It reads the files in `desk/` and `archive/`; their format is the contract.
 
 ### Archiving a card
 
-`desk/` should hold the work in flight. Once a card is `done` (and, if it opened a PR, the PR is merged), type `/archive <card-id>`. `scripts/archive.py` removes the card's worktrees and moves `desk/<card-id>/` to `archive/<card-id>/`. It refuses a card that is not `done`, one held by a live session, a worktree with uncommitted changes, or a branch that is not fully pushed; there is no override. The local `bureau/<card-id>` branch stays. An archived card can no longer have its PR repaired by `scripts/pr.py`, which needs the worktree.
+`desk/` should hold the work in flight. Once a card is `done` (and, if it opened a PR, the PR is merged), type `/archive <card-id>`. `scripts/archive.py` removes the card's worktrees and moves `desk/<card-id>/` to `archive/<card-id>/`. It refuses a card that is not `done`, one held by a live session, a worktree with uncommitted changes, or a branch that is not fully pushed; there is no override. The local `bureau/<card-id>` branch stays. Gitignored files in a worktree (a local `.env`) are deleted with it. If a new card reuses an archived id, the viewer shows the desk card and the archived copy is unreachable from the page; keep ids unique. An archived card can no longer have its PR repaired by `scripts/pr.py`, which needs the worktree.
 
 ## Tests
 
