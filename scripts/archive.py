@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Move a finished card out of desk/ into archive/ (next to desk/) and remove its worktrees.
 
-Usage: archive.py <card-dir>
+Usage: archive.py <card-dir> [--force]
 Refuses, moving nothing, unless the card is directly under desk/, `done`, not held by another live
 session, not already archived, and every worktree is clean with its branch pushed. Local branches are kept.
+A dirty or unpushed worktree is refused with a list of what would be lost; --force archives anyway
+(uncommitted changes are discarded, unpushed commits stay on the local branch). The caller confirms with the human first.
 Ignored files in a worktree (a local .env) are deleted with it. Worktrees go first, so a failure
 partway can leave the card on the desk with some worktrees already removed; running it again finishes the job.
 Archive dir: $BUREAU_ARCHIVE, else archive/ next to desk/ (scripts/ui.py reads the same).
@@ -23,7 +25,7 @@ def git(wt, *args):
     return subprocess.run(["git", "-C", wt, *args], capture_output=True, text=True)
 
 
-def archive(card, desk=sessions.DESK):
+def archive(card, desk=sessions.DESK, force=False):
     card = os.path.realpath(card)
     cid = os.path.basename(card)
     if os.path.dirname(card) != os.path.realpath(desk) or not re.fullmatch(r"[\w.-]+", cid):
@@ -43,17 +45,20 @@ def archive(card, desk=sessions.DESK):
         sys.exit(f"{cid} is held by live session {e['session']} (pid {e['pid']}); close it first.")
     root = os.path.join(card, "worktrees")
     trees = sorted(os.path.join(root, d) for d in os.listdir(root)) if os.path.isdir(root) else []
+    lost = []
     for wt in trees:
         if os.path.realpath(git(wt, "rev-parse", "--show-toplevel").stdout.strip()) != os.path.realpath(wt):
             sys.exit(f"{wt} is not a git worktree.")
         if git(wt, "status", "--porcelain").stdout.strip():
-            sys.exit(f"uncommitted changes in {wt}: commit and push, or discard them.")
+            lost.append(f"{wt}: uncommitted changes would be discarded")
         ahead = git(wt, "rev-list", "--count", "@{u}..HEAD")
         if ahead.returncode or ahead.stdout.strip() != "0":
-            sys.exit(f"{wt}: branch is not fully pushed (no upstream, or commits ahead of it); push it first.")
+            lost.append(f"{wt}: branch is not fully pushed (no upstream, or commits ahead of it); the commits stay on the local branch")
+    if lost and not force:
+        sys.exit("\n".join(lost) + "\nPush or commit first, or re-run with --force to archive anyway.")
     for wt in trees:
         common = git(wt, "rev-parse", "--path-format=absolute", "--git-common-dir").stdout.strip()
-        r = subprocess.run(["git", "-C", os.path.dirname(common), "worktree", "remove", wt], capture_output=True, text=True)
+        r = subprocess.run(["git", "-C", os.path.dirname(common), "worktree", "remove", *(["--force"] if force else []), wt], capture_output=True, text=True)
         if r.returncode:
             sys.exit(f"git worktree remove {wt} failed: {r.stderr.strip()}")
     if trees:
@@ -67,6 +72,7 @@ def archive(card, desk=sessions.DESK):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
+    args = [a for a in sys.argv[1:] if a != "--force"]
+    if len(args) != 1:
         sys.exit(__doc__)
-    print(archive(sys.argv[1]))
+    print(archive(args[0], force="--force" in sys.argv))

@@ -37,8 +37,8 @@ class ArchiveTest(unittest.TestCase):
                 git("-C", wt, "push", "-q", "-u", "origin", "bureau/" + cid)
         return d
 
-    def run_archive(self, d):
-        return archive.archive(d, desk=self.desk)
+    def run_archive(self, d, force=False):
+        return archive.archive(d, desk=self.desk, force=force)
 
     def refused(self, d, msg=""):
         with self.assertRaises(SystemExit) as cm:
@@ -74,6 +74,27 @@ class ArchiveTest(unittest.TestCase):
         d = self.card("A-4")
         git("-C", os.path.join(d, "worktrees", "clone"), "commit", "-q", "--allow-empty", "-m", "ahead")
         self.refused(d)
+
+    def test_force_archives_dirty_and_unpushed_but_keeps_the_branch(self):
+        d = self.card("A-5", push=False)
+        open(os.path.join(d, "worktrees", "clone", "new.txt"), "w").close()
+        with self.assertRaises(SystemExit) as cm:
+            self.run_archive(d)
+        self.assertIn("uncommitted changes", str(cm.exception))
+        self.assertIn("not fully pushed", str(cm.exception))
+        self.assertIn("--force", str(cm.exception))
+        dest = self.run_archive(d, force=True)
+        self.assertTrue(os.path.isdir(dest))
+        branches = subprocess.run(["git", "-C", self.clone, "branch", "--list", "bureau/A-5"], capture_output=True, text=True).stdout
+        self.assertIn("bureau/A-5", branches)
+
+    def test_force_does_not_override_other_refusals(self):
+        with self.assertRaises(SystemExit):
+            self.run_archive(self.card(current="build"), force=True)
+        d = self.card("A-6")
+        os.makedirs(os.path.join(d, "worktrees", "zzz"))
+        with self.assertRaises(SystemExit):
+            self.run_archive(d, force=True)
 
     def test_refuses_existing_archive_and_bad_id(self):
         d = self.card()

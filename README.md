@@ -279,7 +279,7 @@ Anything personal (a persona with your company's conventions, a private workflow
 | `scripts/workflow.py` | Parses workflows: `list show start` |
 | `scripts/worktree.py` | Creates a card's worktree from `repos.yaml` |
 | `scripts/pr.py` | Pushes the branch, opens the draft PR from `pr.md`, appends the link to it |
-| `scripts/archive.py` | Moves a `done` card to `archive/` and removes its worktrees; refuses dirty or unpushed ones |
+| `scripts/archive.py` | Moves a `done` card to `archive/` and removes its worktrees; refuses dirty or unpushed ones unless `--force` |
 | `scripts/ui.py` | Read-only card viewer (see [Viewing cards](#viewing-cards)) |
 | `workflows/`, `personas/` | The shipped workflows and personas, yours to extend |
 | `AGENTS.md` | Base rules loaded for every card |
@@ -315,7 +315,7 @@ A read-only page that lists the cards in `desk/` (and, under Archived, those in 
 
 ### Archiving a card
 
-`desk/` should hold the work in flight. Once a card is `done` (and, if it opened a PR, the PR is merged), type `/archive <card-id>`. `scripts/archive.py` removes the card's worktrees and moves `desk/<card-id>/` to `archive/<card-id>/`. It refuses a card that is not `done`, one held by a live session, a worktree with uncommitted changes, or a branch that is not fully pushed; there is no override. The local `bureau/<card-id>` branch stays. Gitignored files in a worktree (a local `.env`) are deleted with it. If a new card reuses an archived id, the viewer shows the desk card and the archived copy is unreachable from the page; keep ids unique. An archived card can no longer have its PR repaired by `scripts/pr.py`, which needs the worktree.
+`desk/` should hold the work in flight. Once a card is `done` (and, if it opened a PR, the PR is merged), type `/archive <card-id>`. `scripts/archive.py` removes the card's worktrees and moves `desk/<card-id>/` to `archive/<card-id>/`. It refuses a card that is not `done`, one held by a live session, a worktree with uncommitted changes, or a branch that is not fully pushed. For the last two it lists what would be lost and `/archive` asks you whether to go ahead; on your yes it re-runs with `--force`, which discards uncommitted changes (unpushed commits stay on the local branch). The other refusals have no override. The local `bureau/<card-id>` branch stays. Gitignored files in a worktree (a local `.env`) are deleted with it. If a new card reuses an archived id, the viewer shows the desk card and the archived copy is unreachable from the page; keep ids unique. An archived card can no longer have its PR repaired by `scripts/pr.py`, which needs the worktree.
 
 ## Tests
 
