@@ -1,6 +1,6 @@
 ---
 name: archive
-description: Move a finished card out of desk/ into archive/ and remove its worktrees. Typed by the user only, as /archive <card-id>, usually once the PR is merged.
+description: Move a finished card out of desk/ into desk/.archive/ and remove its worktrees. Typed by the user only, as /archive <card-id>, usually once the PR is merged.
 disable-model-invocation: true
 ---
 

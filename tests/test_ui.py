@@ -55,6 +55,13 @@ class UiTest(unittest.TestCase):
         self.assertIsNone(ui.card(self.desk, "../../etc"))
         self.assertEqual(ui.card(self.desk, "done")["sessions"], [])
 
+    def test_archive_inside_desk_is_not_a_live_card(self):
+        write(f"{self.desk}/.archive/old/state.json", json.dumps({"current": "done", "steps": []}))
+        self.assertNotIn(".archive/old", {r["id"] for r in ui.cards(self.desk)})
+        rows = ui.cards(self.desk, os.path.join(self.desk, ".archive"))
+        self.assertEqual([r["id"] for r in rows if r.get("archived")], ["old"])
+        self.assertEqual([r["id"] for r in rows if r["id"] != "old"].count("old"), 0)
+
     def test_archived_cards_are_listed_last_and_open(self):
         rows = ui.cards(self.desk, self.archive)
         self.assertEqual([r["id"] for r in rows][-1], "old")

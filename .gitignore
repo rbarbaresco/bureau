@@ -3,4 +3,3 @@ desk/*
 !desk/.gitkeep
 repos.yaml
 __pycache__/
-/archive/

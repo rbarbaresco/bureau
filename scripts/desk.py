@@ -184,7 +184,8 @@ def skip(card_dir, step_id):
 def list_cards(desk_dir):
     """One line per run, nested tasks included: path, workflow, current step, awaiting."""
     rows = []
-    for root, _, files in os.walk(desk_dir):
+    for root, dirs, files in os.walk(desk_dir):
+        dirs[:] = [d for d in dirs if not d.startswith(".")]  # desk/.archive
         if "state.json" in files and "worktrees" not in os.path.relpath(root, desk_dir).split(os.sep):
             s = load(root)
             rows.append(f"{os.path.relpath(root, desk_dir)}\t{s.get('workflow')}\t{s['current']}\t{s.get('awaiting') or '-'}")

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Move a finished card out of desk/ into archive/ (next to desk/) and remove its worktrees.
+"""Move a finished card out of desk/ into desk/.archive/ and remove its worktrees.
 
 Usage: archive.py <card-dir> [--force]
 Refuses, moving nothing, unless the card is directly under desk/, `done`, not held by another live
@@ -8,7 +8,7 @@ A dirty or unpushed worktree is refused with a list of what would be lost; --for
 (uncommitted changes are discarded, unpushed commits stay on the local branch). The caller confirms with the human first.
 Ignored files in a worktree (a local .env) are deleted with it. Worktrees go first, so a failure
 partway can leave the card on the desk with some worktrees already removed; running it again finishes the job.
-Archive dir: $BUREAU_ARCHIVE, else archive/ next to desk/ (scripts/ui.py reads the same).
+Archive dir: $BUREAU_ARCHIVE, else desk/.archive/ (scripts/ui.py reads the same). The dot keeps it out of the desk scans.
 """
 import json
 import os
@@ -37,7 +37,7 @@ def archive(card, desk=sessions.DESK, force=False):
         sys.exit(f"{cid}: no readable state.json; only a done card can be archived.")
     if current != "done":
         sys.exit(f"{cid} is at step '{current}', not done; only a done card can be archived.")
-    dest = os.path.join(os.environ.get("BUREAU_ARCHIVE") or os.path.join(os.path.dirname(desk), "archive"), cid)
+    dest = os.path.join(os.environ.get("BUREAU_ARCHIVE") or os.path.join(desk, ".archive"), cid)
     if os.path.exists(dest):
         sys.exit(f"{dest} already exists.")
     e = sessions.last(card)
