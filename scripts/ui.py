@@ -1,6 +1,6 @@
 """Read-only card viewer: python3 scripts/ui.py [--port 8765]  ->  http://127.0.0.1:8765
 
-Lists the cards under desk/ (and archive/, marked archived) and shows one card's state, approvals, text, artifacts and session log.
+Lists the cards under desk/ (and desk/.archive/, marked archived) and shows one card's state, approvals, text, artifacts and session log.
 It reads the files; nothing here opens a file for writing.
 """
 import html
@@ -11,7 +11,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import quote, unquote, urlsplit
 
 DESK = os.environ.get("BUREAU_DESK") or os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "desk")
-ARCHIVE = os.environ.get("BUREAU_ARCHIVE") or os.path.join(os.path.dirname(DESK), "archive")
+ARCHIVE = os.environ.get("BUREAU_ARCHIVE") or os.path.join(DESK, ".archive")
 
 
 def _text(path):
@@ -45,7 +45,7 @@ def _card_dirs(desk):
     """Relative ids: dirs with state.json (same rule as desk.list_cards) or an intake-only card.md."""
     ids = []
     for root, dirs, files in os.walk(desk):
-        dirs[:] = [d for d in dirs if d != "worktrees"]
+        dirs[:] = [d for d in dirs if d != "worktrees" and not d.startswith(".")]
         if "state.json" in files or ("card.md" in files and root != desk):
             ids.append(os.path.relpath(root, desk))
     return ids

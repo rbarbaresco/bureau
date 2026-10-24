@@ -1,3 +1,4 @@
+import glob
 import json
 import os
 import subprocess
@@ -8,6 +9,7 @@ import unittest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 import archive  # noqa: E402
+import desk as deskmod  # noqa: E402
 
 
 def git(*args):
@@ -49,16 +51,23 @@ class ArchiveTest(unittest.TestCase):
     def test_moves_card_and_removes_worktree(self):
         d = self.card()
         dest = self.run_archive(d)
-        self.assertEqual(dest, os.path.join(self.tmp, "archive", "A-1"))
+        self.assertEqual(dest, os.path.join(self.desk, ".archive", "A-1"))
         self.assertFalse(os.path.exists(d))
         self.assertTrue(os.path.exists(os.path.join(dest, "state.json")))
         self.assertFalse(os.path.exists(os.path.join(dest, "worktrees")))
         listing = subprocess.run(["git", "-C", self.clone, "worktree", "list"], capture_output=True, text=True).stdout
         self.assertNotIn("A-1", listing)
 
+    def test_archived_card_is_invisible_to_desk_scans(self):
+        self.card("A-0", worktree=False)
+        self.run_archive(self.card(worktree=False))
+        self.assertEqual([r.split("\t")[0] for r in deskmod.list_cards(self.desk)], ["A-0"])
+        found = glob.glob(os.path.join(self.desk, "**", "state.json"), recursive=True)  # what hooks/approve.py and sessions.cards() do
+        self.assertEqual(found, [os.path.join(self.desk, "A-0", "state.json")])
+
     def test_card_without_worktree(self):  # e.g. a card that only produced a Confluence page
         self.run_archive(self.card(worktree=False))
-        self.assertTrue(os.path.isdir(os.path.join(self.tmp, "archive", "A-1")))
+        self.assertTrue(os.path.isdir(os.path.join(self.desk, ".archive", "A-1")))
 
     def test_refuses_not_done_and_no_state(self):
         self.refused(self.card(current="build"))
@@ -98,7 +107,7 @@ class ArchiveTest(unittest.TestCase):
 
     def test_refuses_existing_archive_and_bad_id(self):
         d = self.card()
-        os.makedirs(os.path.join(self.tmp, "archive", "A-1"))
+        os.makedirs(os.path.join(self.desk, ".archive", "A-1"))
         self.refused(d)
 
     def test_refuses_nested_and_outside_cards(self):
@@ -148,7 +157,7 @@ class ArchiveTest(unittest.TestCase):
 
     def test_archives_card_held_by_my_own_session(self):
         self.run_archive(self.claimed(me=os.getppid()))
-        self.assertTrue(os.path.isdir(os.path.join(self.tmp, "archive", "A-1")))
+        self.assertTrue(os.path.isdir(os.path.join(self.desk, ".archive", "A-1")))
 
 
 if __name__ == "__main__":
