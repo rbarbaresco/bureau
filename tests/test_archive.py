@@ -78,14 +78,24 @@ class ArchiveTest(unittest.TestCase):
         with self.assertRaises(SystemExit):
             archive.archive(os.path.join(self.desk, ".."))
 
-    def test_refuses_card_held_by_live_session(self):
+    def claimed(self, me):
+        """A card claimed by a live process (the test runner's parent); `me` is the pid the script sees as its claude."""
         d = self.card(worktree=False)
         with open(os.path.join(d, "sessions.jsonl"), "w") as f:
             f.write(json.dumps({"event": "claim", "session": "s", "pid": os.getppid()}) + "\n")
         from archive import sessions
         sessions.NAME = sessions.comm(os.getppid())
         self.addCleanup(setattr, sessions, "NAME", "claude")
-        self.refused(d)
+        os.environ["BUREAU_CLAUDE_PID"] = str(me)
+        self.addCleanup(os.environ.pop, "BUREAU_CLAUDE_PID", None)
+        return d
+
+    def test_refuses_card_held_by_another_live_session(self):
+        self.refused(self.claimed(me=1))
+
+    def test_archives_card_held_by_my_own_session(self):
+        archive.archive(self.claimed(me=os.getppid()))
+        self.assertTrue(os.path.isdir(os.path.join(self.tmp, "archive", "A-1")))
 
 
 if __name__ == "__main__":

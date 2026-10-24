@@ -37,7 +37,7 @@ def archive(card):
     if os.path.exists(dest):
         sys.exit(f"{dest} already exists.")
     e = sessions.last(card)
-    if e and sessions.status(card, None) == "held":
+    if e and sessions.status(card, None) == "held" and e["pid"] != sessions.my_pid():  # my own claim is not a holder
         sys.exit(f"{cid} is held by live session {e['session']} (pid {e['pid']}); close it first.")
     root = os.path.join(card, "worktrees")
     trees = sorted(os.path.join(root, d) for d in os.listdir(root)) if os.path.isdir(root) else []
