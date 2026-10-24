@@ -33,6 +33,10 @@ class UiTest(unittest.TestCase):
         write(f"{self.desk}/intake/card.md", "only text")
         write(f"{self.desk}/wait/worktrees/r/state.json", "{}")
         ui.DESK = self.desk
+        self.archive = tempfile.mkdtemp()
+        write(f"{self.archive}/old/state.json", json.dumps({"workflow": "task", "current": "done", "steps": steps}))
+        write(f"{self.archive}/old/card.md", "archived text")
+        ui.ARCHIVE = self.archive
 
     def test_cards_order_and_fields(self):
         rows = ui.cards(self.desk)
@@ -50,6 +54,18 @@ class UiTest(unittest.TestCase):
         self.assertEqual(len(c["sessions"]), 1)  # the torn line is skipped
         self.assertIsNone(ui.card(self.desk, "../../etc"))
         self.assertEqual(ui.card(self.desk, "done")["sessions"], [])
+
+    def test_archived_cards_are_listed_last_and_open(self):
+        rows = ui.cards(self.desk, self.archive)
+        self.assertEqual([r["id"] for r in rows][-1], "old")
+        self.assertTrue(rows[-1]["archived"])
+        self.assertNotIn("old", {r["id"] for r in ui.cards(self.desk)})
+        c = ui.card(self.desk, "old", self.archive)
+        self.assertTrue(c["archived"])
+        self.assertIn(b"(archived)", ui.detail_page("old", c))
+        self.assertIn(b"<h2>Archived</h2>", ui.list_page())
+        self.assertIsNone(ui.card(self.desk, "old"))
+        self.assertIsNone(ui.card(self.desk, "../old", self.archive))
 
     def test_malformed_files_do_not_break_the_list(self):
         for name, state in (("list", "[]"), ("str", '"x"'), ("num", '{"current": 5, "awaiting": 5, "steps": [1, {"id": [1]}]}'),

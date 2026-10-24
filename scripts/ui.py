@@ -1,6 +1,6 @@
 """Read-only card viewer: python3 scripts/ui.py [--port 8765]  ->  http://127.0.0.1:8765
 
-Lists the cards under desk/ and shows one card's state, approvals, text, artifacts and session log.
+Lists the cards under desk/ (and archive/, marked archived) and shows one card's state, approvals, text, artifacts and session log.
 It reads the files; nothing here opens a file for writing.
 """
 import html
@@ -11,6 +11,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import quote, unquote, urlsplit
 
 DESK = os.environ.get("BUREAU_DESK") or os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "desk")
+ARCHIVE = os.environ.get("BUREAU_ARCHIVE") or os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "archive")
 
 
 def _text(path):
@@ -62,7 +63,12 @@ def _sessions(path):
     return out
 
 
-def cards(desk=DESK):
+def cards(desk=DESK, archive=None):
+    rows = _rows(desk) + [dict(r, archived=True) for r in _rows(archive)] if archive else _rows(desk)
+    return sorted(rows, key=lambda r: (bool(r.get("archived")), not r["awaiting"], -r["mtime"]))
+
+
+def _rows(desk):
     rows = []
     for cid in _card_dirs(desk):
         d = os.path.join(desk, cid)
@@ -78,7 +84,7 @@ def cards(desk=DESK):
         ev = _sessions(os.path.join(d, "sessions.jsonl"))
         row["owner"] = str(ev[-1].get("session") or "")[:8] if ev and ev[-1].get("event") == "claim" else None
         rows.append(row)
-    return sorted(rows, key=lambda r: (not r["awaiting"], -r["mtime"]))
+    return rows
 
 
 def _steps(state):
@@ -86,17 +92,19 @@ def _steps(state):
     return [x for x in steps if isinstance(x, dict)] if isinstance(steps, list) else []
 
 
-def card(desk, cid):
+def card(desk, cid, archive=None):
     """Detail for a card id that cards() returned, else None. The id is never joined into a path unchecked."""
     if cid not in _card_dirs(desk):
-        return None
+        if not archive or cid not in _card_dirs(archive):
+            return None
+        desk = archive
     d = os.path.join(desk, cid)
     state = _json(os.path.join(d, "state.json"), None)
     steps = [x.get("id") for x in _steps(state)]
     names = sorted(n[:-3] for n in os.listdir(d)
                    if n.endswith(".md") and n != "card.md" and os.path.isfile(os.path.join(d, n)) and not os.path.islink(os.path.join(d, n)))
     names.sort(key=lambda n: (steps.index(n) if n in steps else len(steps), n))
-    return {"state": state, "steps": _steps(state), "text": _text(os.path.join(d, "card.md")),
+    return {"archived": desk == archive, "state": state, "steps": _steps(state), "text": _text(os.path.join(d, "card.md")),
             "artifacts": [(n, _text(os.path.join(d, n + ".md"))) for n in names],
             "approvals": _json(os.path.join(d, "approvals.json"), {}),
             "sessions": _sessions(os.path.join(d, "sessions.jsonl"))}
@@ -109,12 +117,19 @@ def page(title, body):
     return f"<!doctype html><meta charset=utf-8><title>{html.escape(title)}</title><style>{CSS}</style>{body}".encode()
 
 
-def list_page():
-    rows = "".join(
+def _table(rows):
+    body = "".join(
         f"<tr><td><a href='/card/{html.escape(quote(r['id']))}'>{html.escape(r['id'])}</a></td><td>{html.escape(r['workflow'])}</td>"
         f"<td>{html.escape(r['current'])}</td><td>{'<span class=wait>awaiting approval: ' + html.escape(r['awaiting']) + '</span>' if r['awaiting'] else ''}</td>"
-        f"<td>{html.escape(r['owner'] or '')}</td></tr>" for r in cards(DESK))
-    return page("Bureau", f"<h1>Bureau</h1><table><tr><th>card<th>workflow<th>step<th>gate<th>owner</tr>{rows}</table>")
+        f"<td>{html.escape(r['owner'] or '')}</td></tr>" for r in rows)
+    return f"<table><tr><th>card<th>workflow<th>step<th>gate<th>owner</tr>{body}</table>"
+
+
+def list_page():
+    rows = cards(DESK, ARCHIVE)
+    old = [r for r in rows if r.get("archived")]
+    return page("Bureau", f"<h1>Bureau</h1>{_table([r for r in rows if not r.get('archived')])}"
+                          + (f"<h2>Archived</h2>{_table(old)}" if old else ""))
 
 
 def detail_page(cid, c):
@@ -131,7 +146,7 @@ def detail_page(cid, c):
         owner, log = "no session record", ""
     arts = "".join(f"<h2>{html.escape(n)}</h2><pre>{html.escape(t)}</pre>" for n, t in c["artifacts"])
     wait = f" <span class=wait>awaiting approval: {html.escape(str(s['awaiting']))}</span>" if s.get("awaiting") else ""
-    return page(cid, f"<p><a href='/'>all cards</a></p><h1>{html.escape(cid)}</h1><p>{html.escape(str(s.get('workflow', '-')))} / "
+    return page(cid, f"<p><a href='/'>all cards</a></p><h1>{html.escape(cid)}{' (archived)' if c['archived'] else ''}</h1><p>{html.escape(str(s.get('workflow', '-')))} / "
                 f"{html.escape(str(s.get('current', 'not started')))}{wait}</p>"
                 f"<table><tr><th>step<th>persona<th>gate<th>approved</tr>{steps}</table><h2>card</h2><pre>{html.escape(c['text'])}</pre>"
                 f"{arts}<h2>sessions</h2><p>{html.escape(owner) if sess else owner}</p>{log}")
@@ -153,7 +168,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, list_page())
         if path.startswith("/card/"):
             cid = unquote(path[len("/card/"):])
-            c = card(DESK, cid)
+            c = card(DESK, cid, ARCHIVE)
             if c is not None:
                 return self._send(200, detail_page(cid, c))
         self._send(404, b"not found")

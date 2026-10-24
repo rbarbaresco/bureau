@@ -19,6 +19,7 @@ What you get:
 |---|---|
 | `/work <ref>` | Start or resume a card and run its workflow |
 | `/approve` | Pass a gate (only you can; the agent cannot) |
+| `/archive <card-id>` | Move a finished card out of `desk/` into `archive/` and remove its worktrees |
 | `/consult` (in plain words: "ask the architect…") | Get a persona's advice on the current card |
 | `/issue` (in plain words: "write an issue for this") | Draft a GitHub issue and file it after you approve |
 | `scripts/ui.py` | Watch your cards in a read-only browser page |
@@ -264,6 +265,7 @@ Anything personal (a persona with your company's conventions, a private workflow
 |---|---|
 | `.claude/skills/work` | `/work`: intake, overview, workflow choice, the run loop |
 | `.claude/skills/approve` | `/approve`: continues after the hook has recorded your approval |
+| `.claude/skills/archive` | `/archive`: runs `scripts/archive.py` on a done card |
 | `.claude/skills/consult` | Ask a persona a question about the current card |
 | `.claude/skills/issue` | Draft a GitHub issue in the repo's house style, file it after you approve |
 | `.claude/settings.json` | Registers the four hooks |
@@ -277,11 +279,13 @@ Anything personal (a persona with your company's conventions, a private workflow
 | `scripts/workflow.py` | Parses workflows: `list show start` |
 | `scripts/worktree.py` | Creates a card's worktree from `repos.yaml` |
 | `scripts/pr.py` | Pushes the branch, opens the draft PR from `pr.md`, appends the link to it |
+| `scripts/archive.py` | Moves a `done` card to `archive/` and removes its worktrees; refuses dirty or unpushed ones |
 | `scripts/ui.py` | Read-only card viewer (see [Viewing cards](#viewing-cards)) |
 | `workflows/`, `personas/` | The shipped workflows and personas, yours to extend |
 | `AGENTS.md` | Base rules loaded for every card |
 | `repos.yaml.sample` | Copy to `repos.yaml` |
 | `desk/` | Run state, gitignored |
+| `archive/` | Finished cards moved out of `desk/`, gitignored |
 | `tests/` | Unit tests and the end-to-end check |
 | `STEPS.md` | Build log: what is done and how each step was verified |
 
@@ -307,7 +311,11 @@ Anything personal (a persona with your company's conventions, a private workflow
 python3 scripts/ui.py [--port 8765]    # then open http://127.0.0.1:8765
 ```
 
-A read-only page that lists the cards in `desk/` and shows one card's state, approvals, text, artifacts and session log. It never writes. It binds `127.0.0.1` only and rejects requests whose `Host` header is not `127.0.0.1:<port>` or `localhost:<port>` (`scripts/ui.py:149`). It reads the files in `desk/`; their format is the contract.
+A read-only page that lists the cards in `desk/` (and, under Archived, those in `archive/`) and shows one card's state, approvals, text, artifacts and session log. It never writes. It binds `127.0.0.1` only and rejects requests whose `Host` header is not `127.0.0.1:<port>` or `localhost:<port>` (`scripts/ui.py:149`). It reads the files in `desk/`; their format is the contract.
+
+### Archiving a card
+
+`desk/` should hold the work in flight. Once a card is `done` (and, if it opened a PR, the PR is merged), type `/archive <card-id>`. `scripts/archive.py` removes the card's worktrees and moves `desk/<card-id>/` to `archive/<card-id>/`. It refuses a card that is not `done`, one held by a live session, a worktree with uncommitted changes, or a branch that is not fully pushed; there is no override. The local `bureau/<card-id>` branch stays. An archived card can no longer have its PR repaired by `scripts/pr.py`, which needs the worktree.
 
 ## Tests
 
