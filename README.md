@@ -158,7 +158,7 @@ In `small`, `understand` replaces the separate plan: your approval there is what
 
 **Step.** Has a persona, a gate (`none` or `approve`; `approve+check` is accepted but behaves exactly like `approve`, `scripts/desk.py:20`) and, for steps that edit code, `writes_code: true`.
 
-**Persona.** A markdown file in `personas/` describing a role: what it cares about and how it reports. `writer` personas work in your session. `read-only` personas run as subagents that cannot edit files. Shipped: `architect`, `staff-engineer`, `qa`, `journalist`.
+**Persona.** A markdown file in `personas/` describing a role: what it cares about and how it reports. `writer` personas work in your session. `read-only` personas run as subagents that cannot edit files. Shipped: `architect`, `staff-engineer`, `qa`, `journalist`, `prompt-engineer`.
 
 **Card ownership.** One live session owns a card. `/work <id>` from a second session is blocked and there is no override: close the first session. An owner that ended (`hooks/session_end.py`) or died (its process is gone) is taken over, and you see "Took over…". The claims are an append-only log in `desk/<card>/sessions.jsonl`, written only by hooks (`hooks/owner.py` on `/work`, `hooks/session_end.py` on exit; both use `hooks/sessions.py`), with `sessions.lock` serializing the writes. The gate also denies edits from any session that does not own the card.
 
