@@ -11,7 +11,7 @@ Paths below are relative to the Bureau root. Never run steps the human did not c
 ## 1. Resume or intake
 
 - A hook claims the card for this session when you type `/work <id>`. If it printed "Took over …" above, tell the user that line (past sessions); if it blocked, the card is held by a live session: stop.
-- Run `python3 scripts/desk.py list`. If `<ref>` matches a run: read its `state.json`, `card.md`, latest artifact; go to **Run loop** (resume rules there).
+- Run `python3 scripts/desk.py list`. If `<ref>` matches a run (a card id, or `owner/repo#n` as `repo-n`; a URL does not claim the card, so for an existing card ask the user to re-run `/work <card-id>`): read its `state.json`, `card.md`, latest artifact; go to **Run loop** (resume rules there).
 - A `desk/<card-id>/` folder with `card.md` but no `state.json` means intake is done and no workflow was confirmed yet: go to step 3.
 - Otherwise fetch the card and write `desk/<card-id>/card.md` with the Write tool (a hook claims the card on that write) (title, source link, description, acceptance criteria if any, comments that matter):
   - GitHub: `gh issue view <ref> --json title,body,labels,url,comments` (use `gh pr view` for a PR). Card id: `<repo>-<number>`.
@@ -35,11 +35,11 @@ the card text. Still show the rest of the overview, but do not propose a workflo
 ## 3. Workflow
 
 - `python3 scripts/workflow.py list` prints each workflow's "use when". Pick the best match and give the reason in one line,
-  or say none fits and propose a custom step list (same format as `workflows/*.md`: `## step-id`, `persona:`, `gate:`, `writes_code:`, instructions;
+  or say none fits and propose a custom step list (same format as `workflows/*.md`: the `---` frontmatter with `name:` and `use_when:`, then `## step-id`, `persona:`, `gate:`, `writes_code:`, instructions;
   write it to `desk/<card-id>/workflow.md`). If the user named a workflow, use it.
 - Show the steps with their persona and gate (`python3 scripts/workflow.py show <name|file>`).
   If the repo's rules require an entry that needs the PR number (a changelog fragment), propose a `followup` step after `pr` (see the README, *A follow-up that needs the PR number*).
-  The human accepts or edits (add, skip, reorder, change a gate or persona). **Wait for confirmation.**
+  The human accepts or edits (add, skip, reorder, change a gate or persona). Apply edits in `desk/<card-id>/workflow.md` (copy a named workflow there first); `desk.py add`/`skip` work only after `start`. **Wait for confirmation.**
 - On confirmation: `python3 scripts/workflow.py start <name|desk/<card-id>/workflow.md> desk/<card-id>`.
 
 ## 4. Run loop
@@ -48,9 +48,9 @@ For the current step in `state.json`:
 
 1. Read the step's section in `desk/<card-id>/workflow.md` and its persona in `personas/<persona>.md` (or `desk/<card-id>/personas/`).
 2. Do the work as that persona. `read-only` personas run as a read-only subagent (their prompt has the persona, `card.md`,
-   the prior artifacts, and the repo rules output). `writer` personas work in this session.
-3. A step that writes code: create the worktree with `python3 scripts/worktree.py desk/<card-id> <repo>` (repo is a name in
-   `repos.yaml`), then load the rules with `python3 hooks/rules.py desk/<card-id>/worktrees/<repo>` and follow them. Edits are
+   the prior artifacts, and the repo rules output); it returns its findings and you write them to the step's artifact. `writer` personas work in this session.
+3. A step that writes code: if `desk/<card-id>/worktrees/<repo>` does not exist, create it with `python3 scripts/worktree.py desk/<card-id> <repo>` (repo is a name in
+   `repos.yaml`); then load the rules with `python3 hooks/rules.py desk/<card-id>/worktrees/<repo>` and follow them. Edits are
    denied by a hook until both that and the earlier approvals are in place; if denied, do what the message says, never route around it.
 4. Write the step's artifact to `desk/<card-id>/<step-id>.md` (short; evidence and logs by path).
 5. `python3 scripts/desk.py finish desk/<card-id>`.
@@ -75,12 +75,11 @@ the artifact's `## Open questions` when there are any. A failed or blocked state
 | Intake done / workflow proposed | reply "ok", or name a workflow | confirm or edit the steps: add, skip, reorder, change a gate or persona |
 | Gated step finished | `/approve <card-id>` | feedback ("redoes this step"), "go back to <step>", or the open questions |
 | Validity is not `valid` or `real bug` | none | continue, close the card, or fix the card text |
+| Open question on an ungated step | none | answer the question |
 | Step blocked (hook denied an edit, no card awaiting) | the command the error names | what the error says is missing |
 | Fetch failed or tool missing | none | paste the ticket text |
 | Run done | none | merge the draft PR (yours) |
 
 ## Rules
 
-- Tracker writes (comments, status changes, creating issues) need the human's explicit approval first. Opening a PR is approved by `/approve` on the `pr` step (no second confirmation); `scripts/pr.py` opens it as a draft. Merging is the human's.
 - Status updates in tracker comments are summaries, not logs.
-- End each reply with where work landed: Bureau path, card folder, worktree and branch, committed or not.
