@@ -13,11 +13,11 @@ Start with `/work`. State lives in `desk/<card-id>/`; reusable parts live in `wo
   only in that card's worktree (`desk/<card-id>/worktrees/<repo>`). Two sessions in the root share one working tree.
   The gate hook does not enforce this outside worktrees; it is on you.
 - **Never approve your own gate.** Only the human's `/approve` records approval. Do not write
-  `approvals.json`. After a gated step finishes, set `awaiting` in `state.json` to that step's id and stop.
+  `approvals.json`. After a gated step finishes, run `python3 scripts/desk.py finish desk/<card-id>` (it sets `awaiting`) and stop.
 - **One writer per unit of work.** Read-only roles (review, QA, triage) run as subagents; give
   them the rule output in their prompt.
-- **State files:** `state.json` (progress, you may update `current` and `awaiting`),
-  `approvals.json` (human only), `ack.json` (written by `rules.py`), `card.md`, and one artifact per step.
+- **State files:** `state.json` (progress; change it only through `scripts/desk.py`),
+  `approvals.json` (human only), `ack.json` and `sessions.jsonl` (written by hooks), `card.md`, `workflow.md`, and the step artifacts (full layout: README, *Desk*).
 - **Writes to a tracker** (comments, creating issues, status changes) need the human's
   explicit approval first. `/approve` on the `pr` step is the approval to open the PR, as a draft. Merging is the human's.
 - Say where the work landed at the end of each reply: path, branch, commit state, files.

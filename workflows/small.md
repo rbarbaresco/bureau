@@ -16,7 +16,7 @@ persona: staff-engineer
 gate: approve
 writes_code: true
 
-Load the repo rules, create the worktree, then make the change. Test first if there is any logic. For docs, show the rendered diff. Commit all work before finishing: the `pr` step cannot commit.
+Create the worktree, load the repo rules, then make the change. Test first if there is any logic. For docs, show the rendered diff. Commit all work before finishing: the `pr` step cannot commit.
 Write build.md: what changed, test output, deviations from understand.md and why.
 Docs: if the change alters documented behaviour, update the README, docs and instruction files
 (`AGENTS.md`/`CLAUDE.md`) in the same change; otherwise write `Docs: none needed, <reason>` in build.md. A docs-only change skips this; the change is the docs.
@@ -26,13 +26,14 @@ End the artifact with `## Open questions` (or "none").
 persona: qa
 gate: none
 
-As a read-only subagent, check the diff against the acceptance criteria in understand.md. Write review.md with findings ranked by severity.
-Check the docs line in build.md: does the diff leave any README, doc or instruction file stale? Rank a miss as a finding. Skip for docs-only changes.
+As a read-only subagent, check the diff against the acceptance criteria in understand.md. Report findings ranked by severity (the session writes them to review.md).
+Check the docs line in build.md: does the diff leave any README, doc or instruction file stale? Rank a miss as a finding. For a docs-only change, skip this docs check only and still review the diff.
 
 ## pr
 persona: staff-engineer
 gate: approve
 
+Read review.md first. If it has a finding above low, lead the gate summary with it so the human can answer "go back to build" instead of `/approve`; do not fix it yourself here.
 Draft the PR title and body (summary, not the case). Show it to the human.
 Write the draft to pr.md: first line the title, then the body, then the `git diff --stat` file list. `/approve` on this step runs `scripts/pr.py`, which pushes the branch, opens the draft PR and appends its link to pr.md.
 If the repo needs the PR number in a follow-up commit, a `followup` step goes after this one (README, *A follow-up that needs the PR number*).
