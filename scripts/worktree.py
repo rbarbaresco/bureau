@@ -2,7 +2,7 @@
 """Create a card's worktree from a registered clone.
 
 Usage: worktree.py <card-dir> <repo-name> [--repos repos.yaml]
-Creates <card-dir>/worktrees/<repo-name> on branch bureau/<card-id>, from the repo's `base`.
+Creates <card-dir>/worktrees/<repo-name> on branch bureau/<card-id> (numbered after a cancelled run of the same id), from the repo's `base`.
 """
 import os
 import re
@@ -31,6 +31,14 @@ def read_repos(path):
     return repos
 
 
+def branch_name(card_dir):
+    """bureau/<id>; a re-run of an id whose earlier runs were cancelled (desk.py cancel) gets bureau/<id>-<N+1>."""
+    card = os.path.abspath(card_dir)
+    cid, desk = os.path.basename(card), os.path.dirname(card)
+    n = sum(d == f"{cid}.cancelled" or d.startswith(f"{cid}.cancelled-") for d in os.listdir(desk)) if os.path.isdir(desk) else 0
+    return f"bureau/{cid}" + (f"-{n + 1}" if n else "")
+
+
 def add(card_dir, name, repos_file):
     try:
         repos = read_repos(repos_file)
@@ -40,7 +48,7 @@ def add(card_dir, name, repos_file):
         sys.exit(f"unknown repo '{name}'; known: {', '.join(repos) or 'none'}")
     clone, base = repos[name]["path"], repos[name].get("base", "main")
     wt = os.path.join(os.path.abspath(card_dir), "worktrees", name)
-    branch = "bureau/" + os.path.basename(os.path.abspath(card_dir))
+    branch = branch_name(card_dir)
     exists = subprocess.run(["git", "-C", clone, "rev-parse", "--verify", "-q", branch],
                             capture_output=True).returncode == 0
     cmd = ["git", "-C", clone, "worktree", "add"] + ([wt, branch] if exists else ["-b", branch, wt, base])

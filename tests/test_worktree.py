@@ -28,6 +28,16 @@ class WorktreeTest(unittest.TestCase):
         exclude = open(os.path.join(clone, ".git", "info", "exclude")).read().splitlines()
         self.assertEqual((exclude.count(".coverage"), exclude.count(".coverage.*")), (1, 1))
 
+    def test_branch_name_counts_cancelled_runs_of_the_same_id(self):
+        desk = os.path.join(tempfile.mkdtemp(), "desk")
+        card = os.path.join(desk, "ABC-1")
+        self.assertEqual(worktree.branch_name(card), "bureau/ABC-1")
+        os.makedirs(os.path.join(desk, "ABC-1.cancelled"))
+        self.assertEqual(worktree.branch_name(card), "bureau/ABC-1-2")
+        os.makedirs(os.path.join(desk, "ABC-1.cancelled-2"))
+        os.makedirs(os.path.join(desk, "ABC-10.cancelled"))  # another id
+        self.assertEqual(worktree.branch_name(card), "bureau/ABC-1-3")
+
     def test_missing_repos_file_says_how_to_create_it(self):
         missing = os.path.join(tempfile.mkdtemp(), "repos.yaml")
         r = subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "worktree.py"), "desk/A-1", "clone",

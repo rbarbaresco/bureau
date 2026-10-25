@@ -2,7 +2,7 @@
 """Open the draft PR for a card whose `pr` step the human approved.
 
 Usage: pr.py <card-dir>
-Pushes bureau/<card-id> from the card's only worktree, opens a draft PR (or reuses the branch's open one)
+Pushes the card's branch (bureau/<card-id>) from the card's only worktree, opens a draft PR (or reuses the branch's open one)
 from desk/<card>/pr.md (first line = title, rest = body), and appends the link to pr.md.
 Exits non-zero without touching the card state on any failure; safe to run again.
 """
@@ -64,7 +64,7 @@ def open_pr(card):
         sys.exit(str(e))
     except (OSError, KeyError):
         sys.exit(f"repo '{repo}' not found in {repos_file}.")
-    branch = "bureau/" + os.path.basename(card)
+    branch = run(["git", "-C", wt, "branch", "--show-current"])  # what the worktree is on, not a recount of folders
     run(["git", "-C", wt, "push", "-u", "origin", branch])
     url = run(["gh", "pr", "list", "--head", branch, "--json", "url", "--jq", ".[0].url // empty"], cwd=wt)
     if not url:
