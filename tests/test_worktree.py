@@ -28,6 +28,24 @@ class WorktreeTest(unittest.TestCase):
         exclude = open(os.path.join(clone, ".git", "info", "exclude")).read().splitlines()
         self.assertEqual((exclude.count(".coverage"), exclude.count(".coverage.*")), (1, 1))
 
+    def test_branch_flag_checks_out_the_remote_branch_with_upstream(self):
+        tmp = tempfile.mkdtemp()
+        origin, clone = os.path.join(tmp, "origin.git"), os.path.join(tmp, "clone")
+        subprocess.run(["git", "init", "-q", "--bare", "-b", "main", origin], check=True)
+        subprocess.run(["git", "init", "-q", "-b", "main", clone], check=True)
+        g = ["git", "-C", clone, "-c", "user.name=t", "-c", "user.email=t@t"]
+        subprocess.run(g + ["remote", "add", "origin", origin], check=True)
+        subprocess.run(g + ["commit", "-q", "--allow-empty", "-m", "init"], check=True)
+        subprocess.run(g + ["push", "-q", "origin", "main:feat/x"], check=True)
+        repos = os.path.join(tmp, "repos.yaml")
+        with open(repos, "w") as f:
+            f.write(f"repos:\n  clone:\n    path: {clone}\n    base: main\n")
+        wt = worktree.add(os.path.join(tmp, "desk", "pr-7"), "clone", repos, branch="feat/x")
+        out = lambda *a: subprocess.run(["git", "-C", wt, *a], capture_output=True, text=True).stdout.strip()
+        self.assertEqual(out("rev-parse", "--abbrev-ref", "HEAD"), "feat/x")
+        self.assertEqual(out("rev-parse", "--abbrev-ref", "@{u}"), "origin/feat/x")
+        self.assertNotIn("bureau/pr-7", out("branch"))
+
     def test_missing_repos_file_says_how_to_create_it(self):
         missing = os.path.join(tempfile.mkdtemp(), "repos.yaml")
         r = subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "worktree.py"), "desk/A-1", "clone",

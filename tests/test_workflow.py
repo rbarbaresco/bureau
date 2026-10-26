@@ -13,7 +13,7 @@ import workflow  # noqa: E402
 
 class WorkflowTest(unittest.TestCase):
     def test_shipped_workflows_parse(self):
-        for name in ("bugfix", "task", "small"):
+        for name in ("bugfix", "task", "small", "pr-review"):
             wf = workflow.parse(os.path.join(ROOT, "workflows", name + ".md"))
             self.assertEqual(wf["name"], name)
             self.assertTrue(wf["steps"])
