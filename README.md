@@ -144,17 +144,18 @@ Describe a problem or an idea ("write an issue for this") and the `issue` skill 
 
 **Card.** The thing you are working on. Its source of truth is the tracker; Bureau holds a copy in `card.md`.
 
-**Workflow.** A markdown file in `workflows/` listing steps. Three ship with Bureau:
+**Workflow.** A markdown file in `workflows/` listing steps. Four ship with Bureau:
 
 | Workflow | Use when | Steps (gates in bold) |
 |---|---|---|
 | `bugfix` | A defect you can reproduce or locate in one repo | **plan** → **fix** → review → **pr** |
 | `task` | A well-defined story in one repo | understand → **plan** → **build** → review → **pr** |
 | `small` | A small, low-risk change in one repo with an obvious approach (docs, config, renames) | **understand** → **build** → review → **pr** |
+| `pr-review` | An open same-repo PR with review comments to triage and apply (`/work <repo> pr <n>`) | **triage** → **fix** → review → **reply** |
 
 In `small`, `understand` replaces the separate plan: your approval there is what allows code to be written.
 
-**Docs line.** `bugfix`, `task` and `small` end the code step with a `Docs:` line: the README or doc updates made in the same change, or `Docs: none needed, <reason>`. The review step ranks a miss as a finding. A docs-only change in `small` skips both. No hook checks it.
+**Docs line.** `bugfix`, `task`, `small` and `pr-review` end the code step with a `Docs:` line: the README or doc updates made in the same change, or `Docs: none needed, <reason>`. The review step ranks a miss as a finding. A docs-only change in `small` skips both. No hook checks it.
 
 **Step.** Has a persona, a gate (`none` or `approve`; `approve+check` is accepted but behaves exactly like `approve`, `scripts/desk.py:20`) and, for steps that edit code, `writes_code: true`.
 
@@ -281,7 +282,8 @@ Anything personal (a persona with your company's conventions, a private workflow
 | `hooks/sessions.py` | Helper for the three above: reads and writes `sessions.jsonl` |
 | `scripts/desk.py` | Card state and transitions: `init finish advance revise reject add skip list` |
 | `scripts/workflow.py` | Parses workflows: `list show start` |
-| `scripts/worktree.py` | Creates a card's worktree from `repos.yaml` |
+| `scripts/worktree.py` | Creates a card's worktree from `repos.yaml`; `--branch <name>` checks out an existing remote branch (a PR's head) |
+| `scripts/reply.py` | For `pr-review`: pushes the PR branch (no force) and posts the replies in `reply.json`; never resolves threads |
 | `scripts/pr.py` | Pushes the branch, opens the draft PR from `pr.md`, appends the link to it |
 | `scripts/archive.py` | Moves a `done` card to `desk/.archive/` and removes its worktrees; refuses dirty or unpushed ones unless `--force` |
 | `scripts/ui.py` | Read-only card viewer (see [Viewing cards](#viewing-cards)) |

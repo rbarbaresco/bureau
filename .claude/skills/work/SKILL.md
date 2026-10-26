@@ -14,7 +14,8 @@ Paths below are relative to the Bureau root. Never run steps the human did not c
 - Run `python3 scripts/desk.py list`. If `<ref>` matches a run: read its `state.json`, `card.md`, latest artifact; go to **Run loop** (resume rules there).
 - A `desk/<card-id>/` folder with `card.md` but no `state.json` means intake is done and no workflow was confirmed yet: go to step 3.
 - Otherwise fetch the card and write `desk/<card-id>/card.md` with the Write tool (a hook claims the card on that write) (title, source link, description, acceptance criteria if any, comments that matter):
-  - GitHub: `gh issue view <ref> --json title,body,labels,url,comments` (use `gh pr view` for a PR). Card id: `<repo>-<number>`.
+  - GitHub: `gh issue view <ref> --json title,body,labels,url,comments`. Card id: `<repo>-<number>`.
+  - GitHub PR (`<repo> pr <n>`, a `/pull/<n>` URL, or `owner/repo#n` that `gh pr view` resolves): `gh pr view <ref> --json title,body,url,headRefName,isCrossRepository,reviews,comments`. Card id `<repo>-<n>`; if that id exists in `desk/` or `desk/.archive/`, use `pr-review-<repo>-<n>`. Propose the `pr-review` workflow in §3.
   - Jira: `acli jira workitem view <KEY> --json`. Card id: the key.
   - Sentry (no CLI installed): use a Sentry tool if one is connected; otherwise ask the user to paste the issue.
   - Pasted text: save as given. Use the id the user gave, else make a short kebab-case slug from the title (the user can rename it); do not ask.

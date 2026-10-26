@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Create a card's worktree from a registered clone.
 
-Usage: worktree.py <card-dir> <repo-name> [--repos repos.yaml]
+Usage: worktree.py <card-dir> <repo-name> [--repos repos.yaml] [--branch name]
 Creates <card-dir>/worktrees/<repo-name> on branch bureau/<card-id>, from the repo's `base`.
+With --branch <name> it checks out the existing remote branch <name> instead (a PR's head), tracking origin.
 """
 import os
 import re
@@ -31,7 +32,7 @@ def read_repos(path):
     return repos
 
 
-def add(card_dir, name, repos_file):
+def add(card_dir, name, repos_file, branch=None):
     try:
         repos = read_repos(repos_file)
     except FileNotFoundError as e:
@@ -40,10 +41,15 @@ def add(card_dir, name, repos_file):
         sys.exit(f"unknown repo '{name}'; known: {', '.join(repos) or 'none'}")
     clone, base = repos[name]["path"], repos[name].get("base", "main")
     wt = os.path.join(os.path.abspath(card_dir), "worktrees", name)
-    branch = "bureau/" + os.path.basename(os.path.abspath(card_dir))
+    track = []
+    if branch:
+        base, track = "origin/" + branch, ["--track"]
+        subprocess.run(["git", "-C", clone, "fetch", "origin", branch], check=True)
+    else:
+        branch = "bureau/" + os.path.basename(os.path.abspath(card_dir))
     exists = subprocess.run(["git", "-C", clone, "rev-parse", "--verify", "-q", branch],
                             capture_output=True).returncode == 0
-    cmd = ["git", "-C", clone, "worktree", "add"] + ([wt, branch] if exists else ["-b", branch, wt, base])
+    cmd = ["git", "-C", clone, "worktree", "add"] + ([wt, branch] if exists else track + ["-b", branch, wt, base])
     subprocess.run(cmd, check=True)
     # a killed pytest run leaves .coverage.* behind and the untracked files block the push; the exclude file is
     # shared by the whole clone, so this also hides them in the clone's other worktrees
@@ -61,4 +67,4 @@ if __name__ == "__main__":
     repos_file = a[a.index("--repos") + 1] if "--repos" in a else os.path.join(BUREAU, "repos.yaml")
     if len(a) < 2:
         sys.exit(__doc__)
-    print(add(a[0], a[1], repos_file))
+    print(add(a[0], a[1], repos_file, a[a.index("--branch") + 1] if "--branch" in a else None))
