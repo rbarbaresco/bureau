@@ -14,7 +14,8 @@ FAKE_GH = """#!/bin/sh
 case "$1 $2" in
   "pr view") echo 7 ;;
   "repo view") echo o/r ;;
-  *) echo "$@" >> "$T/calls"; [ "$1 $2" = "pr comment" ] && cat >> "$T/calls" ;;
+  *) case "$*" in *FAIL*) [ -f "$T/ok" ] || exit 1 ;; esac
+     echo "$@" >> "$T/calls"; [ "$1 $2" = "pr comment" ] && cat >> "$T/calls" ;;
 esac
 exit 0
 """
@@ -97,6 +98,41 @@ class ReplyTest(unittest.TestCase):
               json.dumps({"card": "pr-7", "current": "fix", "awaiting": "fix", "steps": STEPS}))
         self.assertIn("not awaiting", self.run_reply().stderr)
         self.assertEqual(self.calls(), "")
+
+    def test_bad_reply_json_is_rejected_before_anything_runs(self):
+        for bad in ('{"a": 1}', '[1]', '[{"in_reply_to": 1}]', '[{"body": "  "}]',
+                    '[{"in_reply_to": 11, "body": "ok"}, {"in_reply_to": 12}]'):
+            write(os.path.join(self.card, "reply.json"), bad)
+            self.assertIn("non-empty string 'body'", self.run_reply().stderr, bad)
+        self.assertEqual(self.calls(), "")
+        self.assertEqual(git(self.origin, "log", "--format=%s", "feat/x").count("fix"), 0)
+
+    def test_failure_midway_then_rerun_posts_only_the_rest(self):
+        write(os.path.join(self.card, "reply.json"), json.dumps(
+            [{"in_reply_to": 11, "body": "first"}, {"in_reply_to": 12, "body": "FAIL second"}]))
+        self.assertNotEqual(self.run_reply().returncode, 0)
+        write(os.path.join(self.tmp, "ok"), "")
+        r = self.run_reply()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("1 replies posted", r.stdout)
+        self.assertEqual(self.calls().count("first"), 1)
+        self.assertEqual(self.calls().count("FAIL second"), 1)
+
+    def test_diverged_remote_is_not_overwritten(self):
+        other = os.path.join(self.tmp, "other")
+        subprocess.run(["git", "clone", "-q", "-b", "feat/x", self.origin, other], check=True)
+        write(os.path.join(other, "theirs.py"), "y\n")
+        git(other, "add", "-A")
+        git(other, "commit", "-qm", "theirs")
+        git(other, "push", "-q")
+        self.assertNotEqual(self.run_reply().returncode, 0)  # a plain push is rejected, never forced
+        self.assertEqual(self.calls(), "")
+        self.assertIn("theirs", git(self.origin, "log", "--format=%s", "feat/x"))
+
+    def test_done_card_can_still_post(self):
+        s = json.load(open(os.path.join(self.card, "state.json")))
+        write(os.path.join(self.card, "state.json"), json.dumps({**s, "current": "done", "awaiting": None}))
+        self.assertEqual(self.run_reply().returncode, 0)
 
 
 if __name__ == "__main__":

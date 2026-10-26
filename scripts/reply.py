@@ -34,11 +34,16 @@ def post_replies(card):
             replies = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError) as e:
         sys.exit(f"{path} missing or invalid ({e}): write the replies first.")
+    # validate everything before the push, so bad input cannot leave some replies posted and others not
+    if not isinstance(replies, list) or not all(
+            isinstance(r, dict) and isinstance(r.get("body"), str) and r["body"].strip() for r in replies):
+        sys.exit(f"{path} must be a list of objects, each with a non-empty string 'body'.")
     if run(["git", "-C", wt, "status", "--porcelain"]):
         sys.exit(f"uncommitted changes in {wt}: commit them first.")
-    run(["git", "-C", wt, "push"])
     number = run(["gh", "pr", "view", "--json", "number", "--jq", ".number"], cwd=wt)
     repo = run(["gh", "repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"], cwd=wt)
+    run(["git", "-C", wt, "push"])
+    posted = 0
     for r in replies:
         if r.get("posted"):
             continue
@@ -48,9 +53,10 @@ def post_replies(card):
         else:
             run(["gh", "pr", "comment", number, "--body-file", "-"], cwd=wt, input=r["body"])
         r["posted"] = True
+        posted += 1
         with open(path, "w") as f:  # after each post, so a failure half-way does not repeat the earlier ones
             json.dump(replies, f, indent=2)
-    return f"pushed; {sum(1 for r in replies if r.get('posted'))} replies posted on PR #{number}"
+    return f"pushed; {posted} replies posted on PR #{number}"
 
 
 if __name__ == "__main__":
