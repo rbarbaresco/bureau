@@ -2,6 +2,7 @@
 """Workflow files: parse, list, start a run.
 
 Usage: workflow.py list
+       workflow.py steps              (the step catalogue in steps/: id and use_when)
        workflow.py show <name|file>
        workflow.py start <name|file> <card-dir>
 
@@ -17,6 +18,8 @@ File format (workflows/<name>.md):
     loop: true                   (optional, gated steps: /approve approves a round, /approve done ends it)
 
     Free-text instructions for the step.
+
+A catalogue step (steps/<id>.md) is the same format with one step; its `name` is the step id.
 """
 import os
 import shutil
@@ -74,8 +77,8 @@ def start(name_or_file, card_dir):
 if __name__ == "__main__":
     a = sys.argv[1:]
     try:
-        if a[:1] == ["list"]:
-            d = os.path.join(BUREAU, "workflows")
+        if a[:1] in (["list"], ["steps"]):
+            d = os.path.join(BUREAU, "workflows" if a[0] == "list" else "steps")
             for f in sorted(os.listdir(d)):
                 if f.endswith(".md"):
                     w = parse(os.path.join(d, f))

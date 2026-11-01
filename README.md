@@ -149,16 +149,18 @@ Describe a problem or an idea ("write an issue for this") and the `issue` skill 
 
 | Workflow | Use when | Steps (gates in bold) |
 |---|---|---|
-| `bugfix` | A defect you can reproduce or locate in one repo | **plan** → **fix** → review → **pr** |
-| `task` | A well-defined story in one repo | understand → **plan** → **build** → review → **pr** |
+| `bugfix` | A defect you can reproduce or locate in one repo | **plan** → **fix** → docs → review → **pr** |
+| `task` | A well-defined story in one repo | understand → **plan** → **build** → docs → review → **pr** |
 | `small` | A small, low-risk change in one repo with an obvious approach (docs, config, renames) | **understand** → **build** → review → **pr** |
-| `pr-review` | An open same-repo PR with review comments to triage and apply (`/work <repo> pr <n>`) | **triage** → **fix** → review → **reply** |
+| `pr-review` | An open same-repo PR with review comments to triage and apply (`/work <repo> pr <n>`) | **triage** → **fix** → docs → review → **reply** |
 
 In `small`, `understand` replaces the separate plan: your approval there is what allows code to be written.
 
-**Docs line.** `bugfix`, `task`, `small` and `pr-review` end the code step with a `Docs:` line: the README or doc updates made in the same change, or `Docs: none needed, <reason>`. The review step ranks a miss as a finding. A docs-only change in `small` skips both. No hook checks it.
+**Docs step.** In `bugfix`, `task` and `pr-review`, a `docs` step (persona `journalist`) follows the code step: it updates the README, docs and instruction files the change makes stale and commits, or writes `Docs: none needed, <reason>` in `docs.md`. It writes code but has no gate of its own: it runs only after the code step is approved, and you see its diff at the `pr` (or `reply`) gate. The review step ranks a stale doc as a finding. `small` keeps docs inside `build` (a docs-only change skips it). No hook checks it.
 
-**Step.** Has a persona, a gate (`none` or `approve`; `approve+check` is accepted but behaves exactly like `approve`, `scripts/desk.py:20`) and, for steps that edit code, `writes_code: true`. A gated step can set `loop: true` to repeat: each `/approve` approves one round and keeps the step current, and `/approve done` (or `/approve <card-id> done`) approves the last round and moves on. `done` is ignored on a step that does not loop, and it is reserved: no card can be named `done`.
+**Step catalogue.** `steps/` holds one file per step: the shipped workflows' steps plus ones no workflow uses yet (`reproduce`, `research`, `migration`, `human-review`, `publish`, `followup`). Each has a `use_when`; `python3 scripts/workflow.py steps` lists them. Bureau reads it when it proposes a custom workflow or an extra step. Workflows keep their own copy of each step's text, so a workflow can word a step for itself; the catalogue is reference, not included.
+
+**Step.** Has a persona, a gate (`none` or `approve`; `approve+check` is accepted but behaves exactly like `approve`, `scripts/desk.py:20`) and, for steps that edit code, `writes_code: true`. A gated step can set `loop: true` to repeat: each `/approve` approves one round and keeps the step current, and `/approve done` (or `/approve <card-id> done`) approves the last round and moves on. `done` is ignored on a step that does not loop, and it is reserved: no card can be named `done`. Any gated step can loop: use it when every round needs its own approval (a `publish` step where you approve each version that goes out), not for ordinary feedback, which already redoes a step.
 
 **Persona.** A markdown file in `personas/` describing a role: what it cares about and how it reports. `writer` personas work in your session. `read-only` personas run as subagents that cannot edit files. Shipped: `architect`, `staff-engineer`, `qa`, `journalist`, `prompt-engineer`.
 
@@ -204,7 +206,7 @@ If any of those files change, the hash no longer matches and the rules must be l
 
 **After the last step.** When a card is `done`, the gate denies every code edit in the worktree ("Card is done: no more code changes"). The PR is opened by `scripts/pr.py`, which `/approve` on the `pr` step runs. It pushes the branch without force, opens a draft PR, and refuses a worktree with uncommitted changes, so commit during the code step. In `pr-review`, `/approve` on `reply` runs `scripts/reply.py` instead: it pushes the PR's branch (no force) and posts `reply.json`.
 
-**A follow-up that needs the PR number.** Some repos want an entry (a changelog fragment) named after the PR number, which exists only once `pr` is approved. The gate does not make an exception for that. Add a gated code step after `pr`: `desk.py add desk/<card> pr '{"id":"followup","gate":"approve","persona":"staff-engineer","writes_code":true}'`. After `/approve` on `pr`, the card moves to `followup` instead of `done`; the agent reads the PR link from `pr.md`, makes the change, commits and pushes (no force), and you `/approve` once more. `pr.py` pushes only once, so the step pushes itself. Without that step, such an edit is yours to make after the PR opens.
+**A follow-up that needs the PR number.** Some repos want an entry (a changelog fragment) named after the PR number, which exists only once `pr` is approved. The gate does not make an exception for that. Add a gated code step after `pr` (`steps/followup.md`): `desk.py add desk/<card> pr '{"id":"followup","gate":"approve","persona":"staff-engineer","writes_code":true}'`. After `/approve` on `pr`, the card moves to `followup` instead of `done`; the agent reads the PR link from `pr.md`, makes the change, commits and pushes (no force), and you `/approve` once more. `pr.py` pushes only once, so the step pushes itself. Without that step, such an edit is yours to make after the PR opens.
 
 **What these do not cover.** Be clear about the limits:
 
@@ -242,6 +244,24 @@ Rules: each `## heading` is a step id, unique within the file. Optional lines be
 python3 scripts/workflow.py show spike
 python3 scripts/workflow.py list
 ```
+
+### Add a step
+
+Create `steps/<id>.md`: the workflow format with one step, whose `name` is the step id (the file name too):
+
+```markdown
+---
+name: security-review
+use_when: ... and when not to use it.
+---
+## security-review
+persona: architect
+gate: approve
+
+Instructions.
+```
+
+`python3 -m unittest discover tests -p test_workflow.py` checks it parses.
 
 ### Add a persona
 
@@ -283,13 +303,13 @@ Anything personal (a persona with your company's conventions, a private workflow
 | `hooks/session_end.py` | Frees the cards a session owns when it ends |
 | `hooks/sessions.py` | Helper for the three above: reads and writes `sessions.jsonl` |
 | `scripts/desk.py` | Card state and transitions: `init finish advance revise reject add skip list doctor` |
-| `scripts/workflow.py` | Parses workflows: `list show start` |
+| `scripts/workflow.py` | Parses workflows: `list steps show start` |
 | `scripts/worktree.py` | Creates a card's worktree from `repos.yaml`; `--branch <name>` checks out an existing remote branch (a PR's head) |
 | `scripts/reply.py` | For `pr-review`: pushes the PR branch (no force) and posts the replies in `reply.json`; never resolves threads |
 | `scripts/pr.py` | Pushes the branch, opens the draft PR from `pr.md`, appends the link to it |
 | `scripts/archive.py` | Moves a `done` card to `desk/.archive/` and removes its worktrees; refuses dirty or unpushed ones unless `--force` |
 | `scripts/ui.py` | Read-only card viewer (see [Viewing cards](#viewing-cards)) |
-| `workflows/`, `personas/` | The shipped workflows and personas, yours to extend |
+| `workflows/`, `steps/`, `personas/` | The shipped workflows, the step catalogue and personas, yours to extend |
 | `AGENTS.md` | Base rules loaded for every card |
 | `repos.yaml.sample` | Copy to `repos.yaml` |
 | `LICENSE`, `CONTRIBUTING.md`, `SECURITY.md` | MIT license, how to contribute, how to report a gate bypass |

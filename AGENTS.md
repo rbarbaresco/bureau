@@ -1,7 +1,7 @@
 # Bureau
 
 A desk for running work items (tickets, issues, stories) through named, gated workflows.
-Start with `/work`. State lives in `desk/<card-id>/`; reusable parts live in `workflows/` and `personas/`.
+Start with `/work`. State lives in `desk/<card-id>/`; reusable parts live in `workflows/`, `steps/` (a catalogue of steps to build workflows from) and `personas/`.
 
 ## Rules for every step
 

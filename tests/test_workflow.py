@@ -18,12 +18,22 @@ class WorkflowTest(unittest.TestCase):
             self.assertEqual(wf["name"], name)
             self.assertTrue(wf["steps"])
             code = [s for s in wf["steps"] if s["writes_code"]]
-            self.assertEqual(len(code), 1)
-            self.assertEqual(code[0]["gate"], "approve")
+            self.assertTrue(code, name)
+            self.assertEqual(code[0]["gate"], "approve")  # later code steps (docs) may run ungated: pr is gated
             # the human approves something before any code is written (plan, or understand in `small`)
             before = wf["steps"][: wf["steps"].index(code[0])]
             self.assertTrue(any(s["gate"] == "approve" for s in before), name)
             self.assertTrue(all(s["instructions"] for s in wf["steps"]))
+
+    def test_step_catalogue_parses(self):
+        d = os.path.join(ROOT, "steps")
+        files = sorted(f for f in os.listdir(d) if f.endswith(".md"))
+        self.assertGreaterEqual(len(files), 10)
+        for f in files:
+            wf = workflow.parse(os.path.join(d, f))
+            self.assertEqual([s["id"] for s in wf["steps"]], [f[:-3]], f)  # one step, named after its file
+            self.assertEqual(wf["name"], f[:-3], f)
+            self.assertTrue(wf["steps"][0]["instructions"], f)
 
     def test_malformed_rejected(self):
         d = tempfile.mkdtemp()
@@ -67,6 +77,10 @@ class WorkflowTest(unittest.TestCase):
                              capture_output=True, text=True, check=True).stdout
         self.assertIn("bugfix:", out)
         self.assertIn("task:", out)
+        out = subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "workflow.py"), "steps"],
+                             capture_output=True, text=True, check=True).stdout
+        self.assertIn("reproduce:", out)
+        self.assertIn("publish:", out)
 
 
 if __name__ == "__main__":

@@ -38,8 +38,12 @@ the card text. Still show the rest of the overview, but do not propose a workflo
 - `python3 scripts/workflow.py list` prints each workflow's "use when". Pick the best match and give the reason in one line,
   or say none fits and propose a custom step list (same format as `workflows/*.md`: `## step-id`, `persona:`, `gate:`, `writes_code:`, `loop:` (gated steps that repeat), instructions;
   write it to `desk/<card-id>/workflow.md`). If the user named a workflow, use it.
+- Build a custom list from the step catalogue: `python3 scripts/workflow.py steps` prints each step's "use when"; read the
+  `steps/<id>.md` files you pick and adapt their text to the card. When a workflow fits but misses a step (a `reproduce`, a
+  `migration`), offer that catalogue step as an addition. Any gated step can set `loop: true` when each round needs its own
+  approval and only the human ends it (a `publish` step is the example); it is not tied to one step.
 - Show the steps with their persona and gate (`python3 scripts/workflow.py show <name|file>`).
-  If the repo's rules require an entry that needs the PR number (a changelog fragment), propose a `followup` step after `pr` (see the README, *A follow-up that needs the PR number*).
+  If the repo's rules require an entry that needs the PR number (a changelog fragment), propose a `followup` step after `pr` (`steps/followup.md`).
   The human accepts or edits (add, skip, reorder, change a gate or persona). **Wait for confirmation.**
 - On confirmation: `python3 scripts/workflow.py start <name|desk/<card-id>/workflow.md> desk/<card-id>`.
 

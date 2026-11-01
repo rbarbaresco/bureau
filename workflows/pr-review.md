@@ -21,8 +21,19 @@ writes_code: true
 Create the worktree on the PR's branch: `python3 scripts/worktree.py desk/<card-id> <repo> --branch <headRefName>`, then load
 the repo rules. Apply only the items the human approved in triage.md, test first where behaviour changes, one commit per logical fix.
 Write fix.md: a table mapping each commit to the comment id it answers, test output, anything approved but not applied and why.
-Docs: if a fix alters documented behaviour, update the README, docs and instruction files in the same change; otherwise write
-`Docs: none needed, <reason>` in fix.md. Commit all work before finishing; do not push.
+Commit all work before finishing; do not push.
+End the artifact with `## Open questions` (or "none").
+
+## docs
+persona: journalist
+gate: none
+writes_code: true
+
+Load the repo rules. Read the code step's artifact and the branch diff (`git diff origin/<base>...HEAD`).
+Find every README, doc and instruction file (`AGENTS.md`/`CLAUDE.md`) the change makes wrong or incomplete, and update
+it in the same branch, in the repo's own style. Commit before finishing: the `pr` step cannot commit.
+If nothing is stale, edit nothing and write `Docs: none needed, <reason>`.
+Write docs.md: each file updated and why, or the none-needed line. No gate: the human sees this diff at the `pr` gate.
 End the artifact with `## Open questions` (or "none").
 
 ## review
@@ -30,7 +41,8 @@ persona: qa
 gate: none
 
 As a read-only subagent, check the diff against the approved list in triage.md and fix.md: missed items, over-applied
-changes, a commit that answers the wrong comment. Write review.md with findings ranked by severity.
+changes, a commit that answers the wrong comment. Check docs.md: does the diff leave any README, doc or instruction
+file stale? Rank a miss as a finding. Write review.md with findings ranked by severity.
 
 ## reply
 persona: staff-engineer
