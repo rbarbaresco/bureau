@@ -213,7 +213,19 @@ class DoctorTest(unittest.TestCase):
                            env={**os.environ, "BUREAU_DESK": os.path.join(self.tmp, "desk")})
         self.assertEqual(r.returncode, 1)
         self.assertNotIn("Traceback", r.stderr)
-        self.assertIn("TYPO-9: state.json unreadable", r.stdout)
+        self.assertIn("TYPO-9: not a card folder", r.stdout)
+
+    def test_errors_name_their_real_cause(self):
+        with open(os.path.join(self.card, "approvals.json"), "w") as f:
+            f.write("5")  # valid JSON, wrong shape: not state.json's fault
+        [line] = self.doctor()
+        self.assertIn("approvals.json is not an object", line)
+        [line] = desk.doctor(os.path.join(self.card, "state.json"), {})  # a file, not the card folder
+        self.assertIn("not a card folder", line)
+
+    def test_plain_file_under_worktrees_is_ignored(self):
+        open(os.path.join(self.card, "worktrees", ".DS_Store"), "w").close()
+        self.assertEqual(self.doctor(), [])
 
 
 if __name__ == "__main__":

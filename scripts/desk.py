@@ -220,8 +220,14 @@ def doctor(card_dir, repos):
     """One card's problems, one line each with its fix; `fixed: ...` lines are repairs already made.
     The only write is git's own worktree repair; card state, approvals and the claim log are never touched."""
     card_dir = os.path.abspath(card_dir)
-    name, s = os.path.basename(card_dir), load(card_dir)
-    ids, cur, aw = _ids(s), s.get("current"), s.get("awaiting")
+    name = os.path.basename(card_dir)
+    if not os.path.isdir(card_dir):
+        return [f"not a card folder ({card_dir}). Fix: pass desk/<card>, or no argument for every card"]
+    try:
+        s = load(card_dir)
+        ids, cur, aw = _ids(s), s.get("current"), s.get("awaiting")
+    except (OSError, ValueError, KeyError, TypeError, AttributeError) as e:
+        return [f"state.json unreadable ({type(e).__name__}: {e}). Fix: restore it, or archive the card"]
     out = []
     if not os.path.exists(os.path.join(card_dir, "sessions.jsonl")):
         out.append(f"no claim log. Fix: /work {name}")
@@ -233,7 +239,11 @@ def doctor(card_dir, repos):
     if aw and aw not in ids:
         out.append(f"awaiting '{aw}' is not a step. Fix: python3 scripts/desk.py reject {card_dir} <step> '<reason>'")
     reached = ids[:ids.index(cur) + 1] if cur in ids else ids
-    for step in _approvals(card_dir):
+    approved = _approvals(card_dir)
+    if not isinstance(approved, dict):
+        out.append("approvals.json is not an object, so desk.py advance cannot read it. Fix: the human repairs it")
+        approved = {}
+    for step in approved:
         if step not in reached:
             out.append(f"approvals.json approves '{step}', a step the card has not reached. "
                        f"Fix: the human removes it from approvals.json")
@@ -255,6 +265,8 @@ def doctor(card_dir, repos):
     root = os.path.join(card_dir, "worktrees")
     for repo in sorted(os.listdir(root)) if os.path.isdir(root) else []:
         wt = os.path.join(root, repo)
+        if not os.path.isdir(wt):  # stray files (.DS_Store); worktree.py only makes dirs here
+            continue
         if not os.path.exists(os.path.join(wt, ".git")):  # without it, git would answer for a parent repo
             out.append(f"worktree {repo} is not a git worktree (no .git). "
                        f"Fix: remove {wt}, then python3 scripts/worktree.py {card_dir} {repo}")
@@ -292,8 +304,8 @@ if __name__ == "__main__":
         for c in [a[1]] if len(a) > 1 else _cards(desk_dir):
             try:
                 lines = doctor(c, repos)
-            except (OSError, ValueError, KeyError, TypeError, AttributeError) as e:  # one broken card must not end the sweep
-                lines = [f"state.json unreadable ({type(e).__name__}: {e}). Fix: restore it, or archive the card"]
+            except Exception as e:  # one broken card must not end the sweep; state.json errors are caught inside doctor
+                lines = [f"could not check this card ({type(e).__name__}: {e}). Fix: report it as a doctor bug"]
             found += [(os.path.relpath(os.path.abspath(c), desk_dir), x) for x in lines]
         print("\n".join(f"{c}: {x}" for c, x in found) or "all cards healthy")
         sys.exit(1 if any(not x.startswith("fixed:") for _, x in found) else 0)
