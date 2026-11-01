@@ -221,6 +221,37 @@ class GateTest(unittest.TestCase):
             self.assertIn("card=TEST-APPROVE", out.split())
         with open(os.path.join(card, "approvals.json")) as f:
             self.assertEqual(json.load(f), {"plan": True})
+        # `done` on a non-looping step is ignored: a plain approval
+        for prompt in ("/approve done", "/approve TEST-APPROVE done"):
+            self.assertIn("approved step 'plan'", run(prompt))
+            with open(os.path.join(card, "approvals.json")) as f:
+                self.assertEqual(json.load(f), {"plan": True})
+        # on a looping step: bare /approve approves a round, `done` ends the loop
+        write(os.path.join(card, "state.json"), json.dumps(
+            {"awaiting": "rounds", "steps": [{"id": "rounds", "gate": "approve", "loop": True}]}))
+        for prompt, value, says in (("/approve", True, "round"), ("/approve done", "done", "loop ended"),
+                                    ("/approve TEST-APPROVE done", "done", "loop ended"),
+                                    ("/approve done TEST-APPROVE", "done", "loop ended"),
+                                    ("/approve done done", "done", "loop ended"),
+                                    ("/approve done\nthanks", "done", "loop ended"),  # only the /approve line counts
+                                    ("/approve\ndone", True, "round")):
+            out = run(prompt)
+            self.assertIn(says, out, prompt)
+            self.assertIn("card=TEST-APPROVE", out.split())
+            with open(os.path.join(card, "approvals.json")) as f:
+                self.assertEqual(json.load(f)["rounds"], value, prompt)
+
+    def test_later_code_step_allowed_after_loop_done(self):
+        self.state({"current": "build", "steps": [{"id": "plan", "gate": "approve", "loop": True}, STEPS[1]]})
+        write(os.path.join(self.card, "approvals.json"), json.dumps({"plan": "done"}))
+        self.ack()
+        self.assertIsNone(self.edit())
+
+    def test_later_code_step_denied_while_loop_only_has_a_round_approved(self):
+        self.state({"current": "build", "steps": [{"id": "plan", "gate": "approve", "loop": True}, STEPS[1]]})
+        self.approve("plan")  # a round approval (true), not the end of the loop
+        self.ack()
+        self.assertIn("/approve done", self.edit())
 
 
 if __name__ == "__main__":

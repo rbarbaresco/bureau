@@ -111,6 +111,8 @@ def check(card, repo, session, cmd=None):
     for s in steps[:idx]:
         if s.get("gate", "none") != "none" and not approved.get(s["id"]):
             deny(f"Gate '{s['id']}' is not approved. Ask the user to run /approve before any code is written.")
+        if s.get("loop") and approved.get(s["id"]) != "done":  # a round's `true` is not the end of the loop
+            deny(f"Loop '{s['id']}' has not ended. Only the user ends it, with /approve done.")
     wt = os.path.join(card, "worktrees", repo)
     if load(os.path.join(card, "ack.json")).get(repo) != rules.digest(wt):
         deny(f"Repo rules for '{repo}' are not loaded or changed. Run: python3 {rules.BUREAU}/hooks/rules.py {wt}")

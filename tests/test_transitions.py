@@ -70,6 +70,42 @@ class TransitionTest(unittest.TestCase):
                              capture_output=True, text=True, check=True).stdout
         self.assertIn("Run:     /approve ABC-1", out)
 
+    def loop_card(self):
+        card = os.path.join(tempfile.mkdtemp(), "LOOP-1")
+        desk.init(card, [{"id": "rounds", "gate": "approve", "loop": True}, {"id": "review", "gate": "none"}])
+        return card
+
+    def approve_loop(self, card, value):
+        with open(os.path.join(card, "approvals.json"), "w") as f:
+            json.dump({"rounds": value}, f)
+
+    def test_loop_round_approved_stays_on_step_and_versions_artifact(self):
+        card = self.loop_card()
+        for n in (1, 2):
+            with open(os.path.join(card, "rounds.md"), "w") as f:
+                f.write(f"round {n}\n")
+            desk.finish(card)
+            self.approve_loop(card, True)
+            s = desk.advance(card)
+            self.assertEqual((s["current"], s["awaiting"]), ("rounds", None))
+            with open(os.path.join(card, f"rounds.round-{n}.md")) as f:
+                self.assertEqual(f.read(), f"round {n}\n")
+            self.assertFalse(os.path.exists(os.path.join(card, "rounds.md")))
+            self.assertNotIn("rounds", desk._approvals(card))  # the next round needs a fresh /approve
+
+    def test_loop_done_advances(self):
+        card = self.loop_card()
+        desk.finish(card)
+        self.approve_loop(card, "done")
+        s = desk.advance(card)
+        self.assertEqual((s["current"], s["awaiting"]), ("review", None))
+        self.assertEqual(desk._approvals(card), {"rounds": "done"})
+
+    def test_next_block_loop_names_done(self):
+        card = self.loop_card()
+        out = desk.next_block(card, desk.finish(card))
+        self.assertIn("/approve LOOP-1 done", out)
+
     def test_revise_versions_artifact_and_clears_approval(self):
         open(os.path.join(self.card, "plan.md"), "w").write("v1")
         desk.finish(self.card)
