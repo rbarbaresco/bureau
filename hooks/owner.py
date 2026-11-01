@@ -28,8 +28,8 @@ def resolve(ref):
 
 def main():
     ev = json.load(sys.stdin)
-    m = re.match(r"\s*/work\s+(\S+)", ev.get("prompt", ""))
-    card = m and resolve(m[1])
+    m = re.match(r"\s*/work\s+(\S+)(?:\s+(\d+)\b)?", ev.get("prompt", ""))
+    card = m and (m[2] and resolve(f"{m[1]}-{m[2]}") or resolve(m[1]))  # `/work bureau 77` is bureau-77
     if not card:
         return
     sid, e = ev.get("session_id"), sessions.last(card)

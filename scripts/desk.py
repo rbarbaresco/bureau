@@ -7,15 +7,22 @@ Usage: desk.py init <card-dir> '<steps-json>'
        desk.py revise <card-dir> '<feedback>'
        desk.py reject <card-dir> <to-step> '<reason>'
        desk.py add <card-dir> <after-step-id> '<step-json>' | skip <card-dir> <step-id>
+       desk.py doctor [card-dir]
 
 finish: current step is done; a gated step then waits (`awaiting`) for the human's /approve.
 finish also prints the human's Next block (command to run, what to answer).
 advance: moves on once the awaiting step is approved (approvals.json is written only by the hook).
+doctor: one line per problem on a card (every active card if none given), each naming its fix; exits 1 if any
+is left. Its only write is relinking worktrees whose paths moved (git worktree repair, idempotent).
 A step is {"id", "gate": none|approve|approve+check, "persona"?, "writes_code"?}.
 """
 import json
 import os
+import re
+import subprocess
 import sys
+
+import worktree
 
 GATES = ("none", "approve", "approve+check")
 
@@ -108,7 +115,8 @@ def next_block(card_dir, state):
     """The human-facing Next block for the state `finish` just left."""
     aw, cur = state.get("awaiting"), state["current"]
     if aw:
-        return (f"Next\n  Run:     /approve {state['card']}\n"
+        # the folder is the id everywhere (/approve, branches); state["card"] goes stale if it is renamed
+        return (f"Next\n  Run:     /approve {os.path.basename(os.path.abspath(card_dir))}\n"
                 f"  Or:      reply with feedback           -> redoes {aw}\n"
                 f"           \"go back to <step>\"           -> reopens an earlier step\n"
                 f"  Needed:  1. Read {os.path.join(card_dir, aw + '.md')}\n"
@@ -181,22 +189,107 @@ def skip(card_dir, step_id):
     return s
 
 
-def list_cards(desk_dir):
-    """One line per run, nested tasks included: path, workflow, current step, awaiting."""
-    rows = []
+def _cards(desk_dir):
+    """Every run's card dir, nested tasks included, skipping desk/.archive and worktrees."""
     for root, dirs, files in os.walk(desk_dir):
         dirs[:] = [d for d in dirs if not d.startswith(".")]  # desk/.archive
         if "state.json" in files and "worktrees" not in os.path.relpath(root, desk_dir).split(os.sep):
-            s = load(root)
-            rows.append(f"{os.path.relpath(root, desk_dir)}\t{s.get('workflow')}\t{s['current']}\t{s.get('awaiting') or '-'}")
+            yield root
+
+
+def list_cards(desk_dir):
+    """One line per run, nested tasks included: path, workflow, current step, awaiting."""
+    rows = []
+    for root in _cards(desk_dir):
+        s = load(root)
+        rows.append(f"{os.path.relpath(root, desk_dir)}\t{s.get('workflow')}\t{s['current']}\t{s.get('awaiting') or '-'}")
     return rows
+
+
+def _git(path, *args):
+    return subprocess.run(["git", "-C", path, *args], capture_output=True, text=True)
+
+
+def _linked(wt):
+    """The worktree opens as its own checkout (a broken .git link fails; a missing one would find a parent repo)."""
+    r = _git(wt, "rev-parse", "--show-toplevel")
+    return r.returncode == 0 and os.path.realpath(r.stdout.strip()) == os.path.realpath(wt)
+
+
+def doctor(card_dir, repos):
+    """One card's problems, one line each with its fix; `fixed: ...` lines are repairs already made.
+    The only write is git's own worktree repair; card state, approvals and the claim log are never touched."""
+    card_dir = os.path.abspath(card_dir)
+    name, s = os.path.basename(card_dir), load(card_dir)
+    ids, cur, aw = _ids(s), s.get("current"), s.get("awaiting")
+    out = []
+    if not os.path.exists(os.path.join(card_dir, "sessions.jsonl")):
+        out.append(f"no claim log. Fix: /work {name}")
+    if s.get("card") != name:
+        out.append(f"state.json names card '{s.get('card')}', so the folder was renamed (the claim log and worktrees "
+                   f"are bound to the old path). Fix: move it back to desk/{s.get('card')}")
+    if cur != "done" and cur not in ids:
+        out.append(f"current '{cur}' is not a step. Fix: python3 scripts/desk.py reject {card_dir} <step> '<reason>'")
+    if aw and aw not in ids:
+        out.append(f"awaiting '{aw}' is not a step. Fix: python3 scripts/desk.py reject {card_dir} <step> '<reason>'")
+    reached = ids[:ids.index(cur) + 1] if cur in ids else ids
+    for step in _approvals(card_dir):
+        if step not in reached:
+            out.append(f"approvals.json approves '{step}', a step the card has not reached. "
+                       f"Fix: the human removes it from approvals.json")
+    if cur == "done":
+        pr = os.path.join(card_dir, "pr.md")
+        if os.path.exists(pr):
+            with open(pr) as f:
+                if not re.search(r"^## Opened$", f.read(), re.M):
+                    out.append(f"done, but the PR was never opened. Fix: python3 scripts/pr.py {card_dir}")
+        try:
+            with open(os.path.join(card_dir, "reply.json")) as f:
+                replies = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            replies = []
+        left = [r for r in replies if isinstance(r, dict) and not r.get("posted")] if isinstance(replies, list) else []
+        if left:
+            out.append(f"done, but {len(left)} of {len(replies)} replies were never posted. "
+                       f"Fix: python3 scripts/reply.py {card_dir}")
+    root = os.path.join(card_dir, "worktrees")
+    for repo in sorted(os.listdir(root)) if os.path.isdir(root) else []:
+        wt = os.path.join(root, repo)
+        if not os.path.exists(os.path.join(wt, ".git")):
+            continue
+        if not _linked(wt):
+            clone = repos.get(repo, {}).get("path")
+            if not clone or not os.path.isdir(clone):
+                out.append(f"worktree {repo} is broken and repos.yaml has no existing path for '{repo}' ({clone}). "
+                           f"Fix: correct repos.yaml, then run doctor again")
+                continue
+            r = _git(clone, "worktree", "repair", wt)
+            if not _linked(wt):
+                out.append(f"worktree {repo} is broken and git worktree repair failed: {r.stderr.strip()}")
+                continue
+            out.append(f"fixed: worktree {repo} relinked to {clone}")
+        branch = _git(wt, "branch", "--show-current").stdout.strip()
+        if "pr" in ids and branch != f"bureau/{name}":  # pr.py pushes bureau/<card> (pr-review cards have no pr step)
+            out.append(f"worktree {repo} is on '{branch}', not bureau/{name}, the branch pr.py pushes. "
+                       f"Fix: git -C {wt} branch -m bureau/{name}")
+    return out
 
 
 if __name__ == "__main__":
     a = sys.argv[1:]
     if a[:1] == ["list"]:
-        print("\n".join(list_cards(a[1] if len(a) > 1 else os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "desk"))))
+        print("\n".join(list_cards(a[1] if len(a) > 1 else os.path.join(worktree.BUREAU, "desk"))))
         sys.exit(0)
+    if a[:1] == ["doctor"]:
+        try:
+            repos = worktree.read_repos(os.environ.get("BUREAU_REPOS", os.path.join(worktree.BUREAU, "repos.yaml")))
+        except (OSError, ValueError):
+            repos = {}  # every broken worktree then reports repos.yaml
+        desk_dir = os.environ.get("BUREAU_DESK") or os.path.join(worktree.BUREAU, "desk")
+        found = [(os.path.relpath(os.path.abspath(c), desk_dir), x)
+                 for c in ([a[1]] if len(a) > 1 else _cards(desk_dir)) for x in doctor(c, repos)]
+        print("\n".join(f"{c}: {x}" for c, x in found) or "all cards healthy")
+        sys.exit(1 if any(not x.startswith("fixed:") for _, x in found) else 0)
     try:
         cmd = {"init": lambda: init(a[1], json.loads(a[2])), "finish": lambda: finish(a[1]),
                "advance": lambda: advance(a[1]), "revise": lambda: revise(a[1], a[2]),

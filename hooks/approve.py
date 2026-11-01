@@ -26,16 +26,19 @@ def main():
     if not m:
         return
     want = m[1]
-    cards = []
-    for p in glob.glob(os.path.join(DESK, "**", "state.json"), recursive=True):
+    cards, waiting = [], []
+    for p in sorted(glob.glob(os.path.join(DESK, "**", "state.json"), recursive=True)):
         with open(p) as f:
             state = json.load(f)
         card = os.path.dirname(p)
+        if state.get("awaiting"):
+            waiting.append(f"{os.path.basename(card)} ({state['awaiting']})")
         # a bare /approve means this session's card; an explicit id is the human's word
         if state.get("awaiting") and (os.path.basename(card) == want if want else sessions.status(card, ev.get("session_id")) == "mine"):
             cards.append((card, state))
     if len(cards) != 1:
-        block(f"/approve needs exactly one awaiting card owned by this session; found {len(cards)}. Use /approve <card-id>.")
+        block(f"/approve needs exactly one awaiting card owned by this session; found {len(cards)}. "
+              f"Awaiting: {', '.join(waiting) or 'none'}. Use /approve <card-id>.")
     card, state = cards[0]
     path = os.path.join(card, "approvals.json")
     try:

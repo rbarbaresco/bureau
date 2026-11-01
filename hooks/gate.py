@@ -117,7 +117,7 @@ def check(card, repo, session, cmd=None):
 
 
 DESK = re.compile(  # bare words and single-quoted text only: nothing for bash to expand, split or comment out
-    r"[ \t]*python3?[ \t]+(?P<script>[\w./][\w./-]*)[ \t]+(?P<sub>init|list|finish|advance|revise|reject|add|skip)"
+    r"[ \t]*python3?[ \t]+(?P<script>[\w./][\w./-]*)[ \t]+(?P<sub>init|list|doctor|finish|advance|revise|reject|add|skip)"
     r"(?:[ \t]+(?P<card>[\w./-]+)(?:[ \t]+(?:'[^']*'|[\w.-]+))*)?[ \t]*")
 
 
@@ -206,6 +206,8 @@ def main():
         cmd, cwd = inp.get("command", ""), ev.get("cwd", "")
         claim_new(cmd, cwd, session)
         state_cmd = desk_state(cmd, cwd)
+        if state_cmd and state_cmd[0] == "doctor":  # unowned cards are what it is for; it writes only git worktree links
+            return
         if state_cmd and state_cmd[0] not in ("list", "init"):
             for card in sorted({state_cmd[1]} | named_cards(cmd, cwd)):  # "." and desk/<id>/sub both mean a card
                 owner(card, session)

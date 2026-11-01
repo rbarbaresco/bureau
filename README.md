@@ -280,7 +280,7 @@ Anything personal (a persona with your company's conventions, a private workflow
 | `hooks/owner.py` | Claims a card for the session that runs `/work <id>`, or blocks it if another live session holds it |
 | `hooks/session_end.py` | Frees the cards a session owns when it ends |
 | `hooks/sessions.py` | Helper for the three above: reads and writes `sessions.jsonl` |
-| `scripts/desk.py` | Card state and transitions: `init finish advance revise reject add skip list` |
+| `scripts/desk.py` | Card state and transitions: `init finish advance revise reject add skip list doctor` |
 | `scripts/workflow.py` | Parses workflows: `list show start` |
 | `scripts/worktree.py` | Creates a card's worktree from `repos.yaml`; `--branch <name>` checks out an existing remote branch (a PR's head) |
 | `scripts/reply.py` | For `pr-review`: pushes the PR branch (no force) and posts the replies in `reply.json`; never resolves threads |
@@ -303,7 +303,7 @@ Anything personal (a persona with your company's conventions, a private workflow
 |---|---|
 | "Repo rules for 'x' are not loaded or changed" | Run the command in the message (`python3 hooks/rules.py desk/<card>/worktrees/<repo>`). Bureau normally does this itself |
 | "Gate 'plan' is not approved" | Type `/approve` (or `/approve <card-id>` if more than one card is waiting) |
-| "/approve needs exactly one awaiting card owned by this session; found N. Use /approve <card-id>." | Zero or several cards are waiting for this session: add the card id |
+| "/approve needs exactly one awaiting card owned by this session; found N. Awaiting: … Use /approve <card-id>." | Zero or several cards are waiting for this session: use one of the listed ids |
 | "Card x is held by session …" or "…is held by live session … there is no override" | Another live session owns the card. Close it, then run `/work <card-id>` |
 | "Card x has no live owner session. Run /work x to take over." | The owner ended or died. Run `/work <card-id>` in this session |
 | "Step 'x' does not write code" | The run is not on a build step yet; finish the earlier steps. Non-build steps can still run the read-only commands in the "A read-only command is denied" row |
@@ -312,6 +312,7 @@ Anything personal (a persona with your company's conventions, a private workflow
 | `/approve` seems to do nothing | Check `/hooks`. The hooks load from `.claude/settings.json` only when Claude Code is started inside the Bureau folder |
 | A read-only command is denied (also the cause of "does not write code" above) | Redirects other than to `/dev/null` and pipes into non-allowlisted commands count as writes. Simplify the command, declare the repo's `test:` in `repos.yaml` to run tests, or approve the build step first |
 | Jira card cannot be read | Check the `acli` login, or paste the story text |
+| A card or its worktree misbehaves after you moved the Bureau folder or renamed a card, or anything else looks off | Fix the paths in `repos.yaml`, then run `python3 scripts/desk.py doctor [desk/<card>]`. It relinks moved worktrees (`git worktree repair`) and prints one line per remaining problem with its fix. Do not rename card folders: the claim log, branch and worktree are bound to the name |
 
 ## Viewing cards
 

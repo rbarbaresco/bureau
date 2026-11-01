@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -8,6 +9,8 @@ import unittest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 import desk  # noqa: E402
+sys.path.insert(0, os.path.join(ROOT, "hooks"))
+import sessions  # noqa: E402
 
 STEPS = [{"id": "plan", "gate": "approve"}, {"id": "build", "gate": "approve", "writes_code": True}]
 
@@ -56,6 +59,122 @@ class DeskTest(unittest.TestCase):
         r = subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "worktree.py"), self.card, "nope",
                             "--repos", self.repos], capture_output=True, text=True)
         self.assertNotEqual(r.returncode, 0)
+
+
+class DoctorTest(unittest.TestCase):
+    """A healthy card with a worktree, then one problem at a time."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.clone = os.path.join(self.tmp, "clone")
+        subprocess.run(["git", "init", "-q", "-b", "main", self.clone], check=True)
+        subprocess.run(["git", "-C", self.clone, "-c", "user.name=t", "-c", "user.email=t@t",
+                        "commit", "-q", "--allow-empty", "-m", "init"], check=True)
+        self.card = os.path.join(self.tmp, "desk", "ABC-1")
+        desk.init(self.card, STEPS + [{"id": "pr", "gate": "approve"}])
+        sessions.append(self.card, "claim", "s1", 1)
+        self.wt = os.path.join(self.card, "worktrees", "clone")
+        subprocess.run(["git", "-C", self.clone, "worktree", "add", "-q", "-b", "bureau/ABC-1", self.wt], check=True)
+
+    def doctor(self, card=None, clone=None):
+        return desk.doctor(card or self.card, {"clone": {"path": clone or self.clone}})
+
+    def set(self, **kw):
+        s = desk.load(self.card)
+        s.update(kw)
+        desk.save(self.card, s)
+
+    def snapshot(self):
+        out = {}
+        for f in os.listdir(self.card):
+            p = os.path.join(self.card, f)
+            if os.path.isfile(p):
+                with open(p, "rb") as fh:
+                    out[f] = fh.read()
+        return out
+
+    def test_healthy_card_has_no_lines_and_doctor_writes_no_card_file(self):
+        before = self.snapshot()
+        self.assertEqual(self.doctor(), [])
+        self.assertEqual(self.snapshot(), before)
+
+    def test_missing_claim_log(self):
+        os.remove(os.path.join(self.card, "sessions" + ".jsonl"))
+        self.assertEqual(self.doctor(), ["no claim log. Fix: /work ABC-1"])
+
+    def test_renamed_card(self):
+        self.set(card="OLD-1")
+        [line] = self.doctor()
+        self.assertIn("renamed", line)
+        self.assertIn("desk/OLD-1", line)
+
+    def test_awaiting_and_current_not_steps(self):
+        self.set(awaiting="ghost", current="gone")
+        lines = self.doctor()
+        self.assertTrue(any("awaiting 'ghost'" in x for x in lines), lines)
+        self.assertTrue(any("current 'gone'" in x for x in lines), lines)
+
+    def test_approval_for_a_step_not_reached(self):
+        with open(os.path.join(self.card, "approvals.json"), "w") as f:
+            json.dump({"plan": True, "pr": True}, f)  # plan is current: approving it is fine, pr is ahead
+        [line] = self.doctor()
+        self.assertIn("'pr'", line)
+        self.set(current="build")
+        with open(os.path.join(self.card, "approvals.json"), "w") as f:
+            json.dump({"plan": True}, f)  # a past approval stays on record
+        self.assertEqual(self.doctor(), [])
+
+    def test_done_card_with_unopened_pr_and_unposted_replies(self):
+        self.set(current="done")
+        with open(os.path.join(self.card, "pr.md"), "w") as f:
+            f.write("# Title\n\nbody\n")
+        with open(os.path.join(self.card, "reply.json"), "w") as f:
+            json.dump([{"body": "a", "posted": True}, {"body": "b"}], f)
+        lines = self.doctor()
+        self.assertTrue(any("scripts/pr.py" in x for x in lines), lines)
+        self.assertTrue(any("1 of 2" in x and "scripts/reply.py" in x for x in lines), lines)
+        with open(os.path.join(self.card, "pr.md"), "a") as f:
+            f.write("\n## Opened\nhttps://example/pr/1\n")
+        self.assertEqual(len(self.doctor()), 1)
+
+    def test_worktree_on_wrong_branch(self):
+        subprocess.run(["git", "-C", self.wt, "checkout", "-q", "-b", "other"], check=True)
+        [line] = self.doctor()
+        self.assertIn("bureau/ABC-1", line)
+
+    def test_moved_checkout_worktree_is_repaired(self):
+        """The Bureau move: source repo and desk both moved, repos.yaml already points at the new clone."""
+        new = os.path.join(self.tmp, "moved")
+        os.makedirs(new)
+        os.rename(self.clone, os.path.join(new, "clone"))
+        os.rename(os.path.join(self.tmp, "desk"), os.path.join(new, "desk"))
+        card, clone = os.path.join(new, "desk", "ABC-1"), os.path.join(new, "clone")
+        wt = os.path.join(card, "worktrees", "clone")
+        self.assertNotEqual(subprocess.run(["git", "-C", wt, "status"], capture_output=True).returncode, 0)
+        [line] = self.doctor(card, clone)
+        self.assertTrue(line.startswith("fixed:"), line)
+        subprocess.run(["git", "-C", wt, "status"], check=True, capture_output=True)
+        self.assertEqual(self.doctor(card, clone), [])  # idempotent
+
+    def test_broken_worktree_without_a_valid_repos_path_is_reported(self):
+        os.rename(self.clone, self.clone + "-gone")
+        [line] = self.doctor(clone=self.clone)
+        self.assertIn("repos.yaml", line)
+
+    def test_cli_sweeps_desk_and_exits_1_on_unfixed(self):
+        other = os.path.join(self.tmp, "desk", "XYZ-2")
+        desk.init(other, STEPS)  # no claim log
+        os.makedirs(os.path.join(self.tmp, "desk", ".archive", "OLD-3"))
+        desk.init(os.path.join(self.tmp, "desk", ".archive", "OLD-3"), STEPS)  # archived: skipped
+        repos = os.path.join(self.tmp, "repos.yaml")
+        with open(repos, "w") as f:
+            f.write(f"repos:\n  clone:\n    path: {self.clone}\n")
+        r = subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "desk.py"), "doctor"],
+                           capture_output=True, text=True, cwd=os.path.join(self.tmp, "desk"),
+                           env={**os.environ, "BUREAU_REPOS": repos, "BUREAU_DESK": os.path.join(self.tmp, "desk")})
+        self.assertEqual(r.returncode, 1, r.stderr)
+        self.assertEqual(r.stdout.strip(), "XYZ-2: no claim log. Fix: /work XYZ-2")
 
 
 if __name__ == "__main__":
