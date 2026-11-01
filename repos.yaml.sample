@@ -3,5 +3,5 @@
 repos:
   my-service:
     path: ~/code/my-service      # existing clone; its parent folders' AGENTS.md/CLAUDE.md are loaded too
-    base: main                   # branch new worktrees start from
+    base: main                   # new worktrees start from origin/<base>, fetched first
     test: python3 -m unittest    # optional: the command a read-only step (review) may run in the worktree

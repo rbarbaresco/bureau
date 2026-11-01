@@ -75,7 +75,7 @@ Bureau runs on Linux. Card ownership (see [How it works](#how-it-works)) finds t
    repos:
      shop:                       # the name you use for the repo in workflows
        path: ~/code/shop         # an existing clone
-       base: main                # branch that new worktrees start from
+       base: main                # new worktrees start from origin/main, fetched first
      shop-api:
        path: ~/code/shop-api
        base: develop
