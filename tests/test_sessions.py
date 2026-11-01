@@ -82,6 +82,11 @@ class SessionsTest(unittest.TestCase):
         self.assertIn("held by session s1", self.desk_cmd("finish", "s2"))
         self.assertIsNone(self.desk_cmd("finish", "s1"))
         self.assertIsNone(self.desk_cmd("list", "s2"))
+        self.assertIsNone(self.desk_cmd("doctor", "s2"))  # an unowned card is exactly what doctor is for
+        chained = f"python3 {LINK}/scripts/desk.py doctor {self.card}; python3 {LINK}/scripts/desk.py finish {self.card}"
+        self.assertIn("ABC-1", self.gate("s2", command=chained) or "")  # denied: the exemption covers doctor alone
+        self.own("s1", 2 ** 22 + 1)  # dead owner
+        self.assertIsNone(self.desk_cmd("doctor", "s2"))
 
     def test_gate_blocks_non_owner_worktree_edit(self):
         self.own("s1", self.claude())
@@ -138,6 +143,14 @@ class SessionsTest(unittest.TestCase):
         self.assertEqual(sessions.status(card, "s1"), "mine")
         self.assertNotIn("block", out)
 
+    def test_work_resolves_repo_space_number_and_claims_card_without_log(self):
+        card = os.path.join(self.desk, "bureau-17")
+        os.makedirs(card)
+        with open(os.path.join(card, "state.json"), "w") as f:
+            json.dump({"current": "plan", "awaiting": "plan", "steps": STEPS}, f)
+        self.hook("owner.py", {"prompt": "/work bureau 17", "session_id": "s1"}, self.claude())
+        self.assertEqual(sessions.status(card, "s1"), "mine")
+
     def test_session_end_closes_only_own_cards(self):
         other = os.path.join(self.desk, "ABC-2")
         os.makedirs(other)
@@ -161,6 +174,7 @@ class SessionsTest(unittest.TestCase):
         self.assertIn("card=ABC-1", out)  # explicit id stays authoritative
         out = self.hook("approve.py", {"prompt": "/approve", "session_id": "s3"})
         self.assertIn("block", out)
+        self.assertIn("Awaiting: ABC-1 (plan), ABC-2 (plan)", json.loads(out)["reason"])  # no guessing the id
 
     def test_non_owner_cannot_mutate_card_by_any_syntax(self):
         self.own("s1", self.claude())

@@ -18,6 +18,8 @@ Start with `/work`. State lives in `desk/<card-id>/`; reusable parts live in `wo
   them the rule output in their prompt.
 - **State files:** `state.json` (progress, you may update `current` and `awaiting`),
   `approvals.json` (human only), `ack.json` (written by `rules.py`), `card.md`, and one artifact per step.
+- **Never rename a card folder;** the claim log, branch and worktree are bound to its name. After moving the Bureau
+  folder, fix `repos.yaml` and run `python3 scripts/desk.py doctor`.
 - **Writes to a tracker** (comments, creating issues, status changes) need the human's
   explicit approval first. `/approve` on the `pr` step is the approval to open the PR, as a draft. Merging is the human's.
 - Say where the work landed at the end of each reply: path, branch, commit state, files.

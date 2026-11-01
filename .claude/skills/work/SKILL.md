@@ -5,7 +5,7 @@ description: Start or resume a work item (ticket, issue, Sentry link, pasted sto
 
 # /work <ref> [workflow]
 
-`<ref>` is a card ID already in `desk/`, a GitHub issue/PR URL or `owner/repo#n`, a Jira key or URL, a Sentry link, or pasted text.
+`<ref>` is a card ID already in `desk/`, a GitHub issue/PR URL or `owner/repo#n` (or `<repo> <n>`: card `<repo>-<n>`, never a workflow named `<n>`), a Jira key or URL, a Sentry link, or pasted text.
 Paths below are relative to the Bureau root. Never run steps the human did not confirm.
 
 ## 1. Resume or intake
