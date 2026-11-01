@@ -47,6 +47,8 @@ class DeskTest(unittest.TestCase):
         desk.init(self.card, STEPS + [docs, pr])
         with self.assertRaisesRegex(ValueError, "later gated step"):
             desk.add(self.card, "pr", {"id": "docs2", "gate": "none", "writes_code": True})
+        with self.assertRaisesRegex(ValueError, "later gated step"):  # skipping the only gate after docs
+            desk.skip(self.card, "pr")
 
     def test_invalid_steps_rejected(self):
         for bad in ([], [{"id": "a"}, {"id": "a"}], [{"id": "a", "gate": "maybe"}], [{"gate": "none"}],

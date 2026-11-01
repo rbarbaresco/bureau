@@ -84,6 +84,10 @@ class WorkflowTest(unittest.TestCase):
                              capture_output=True, text=True, check=True).stdout
         self.assertIn("reproduce:", out)
         self.assertIn("publish:", out)
+        r = subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "workflow.py"), "show",
+                            os.path.join(ROOT, "steps", "docs.md")], capture_output=True, text=True, check=True)
+        self.assertIn("docs none journalist", r.stdout)
+        self.assertIn("later gated step", r.stderr)  # shown, with the warning a run would refuse on
 
 
 if __name__ == "__main__":

@@ -84,8 +84,13 @@ if __name__ == "__main__":
                     w = parse(os.path.join(d, f))
                     print(f"{w['name']}: {w['use_when']}")
         elif a[:1] == ["show"] and len(a) == 2:
-            for s in parse(resolve(a[1]))["steps"]:
+            steps = parse(resolve(a[1]))["steps"]
+            for s in steps:
                 print(s["id"], s["gate"], s.get("persona", "-"), "writes_code" if s["writes_code"] else "", "loop" if s["loop"] else "")
+            try:  # a catalogue step alone may fail this; a workflow that does is refused by start
+                desk.validate_steps(steps, run=True)
+            except ValueError as e:
+                print(f"warning: {e}", file=sys.stderr)
         elif a[:1] == ["start"] and len(a) == 3:
             start(a[1], a[2])
         else:

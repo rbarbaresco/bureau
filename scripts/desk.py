@@ -206,6 +206,7 @@ def skip(card_dir, step_id):
     if step_id not in ids or ids.index(step_id) <= (ids.index(s["current"]) if s["current"] in ids else len(ids)):
         raise ValueError("only steps after the current one can be skipped")
     s["steps"] = [x for x in s["steps"] if x["id"] != step_id]
+    validate_steps(s["steps"], run=True)
     save(card_dir, s)
     return s
 
