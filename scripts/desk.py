@@ -29,7 +29,8 @@ import worktree
 GATES = ("none", "approve", "approve+check")
 
 
-def validate_steps(steps):
+def validate_steps(steps, run=False):
+    """run=True for a card's full step list (init, add); a catalogue step is checked alone."""
     if not isinstance(steps, list) or not steps:
         raise ValueError("steps must be a non-empty list")
     ids = []
@@ -43,6 +44,10 @@ def validate_steps(steps):
         ids.append(s["id"])
     if len(set(ids)) != len(ids):
         raise ValueError("duplicate step ids")
+    for i, st in enumerate(steps if run else []):  # an ungated code step (docs) is seen by the human at a later gate
+        if st.get("writes_code") and st.get("gate", "none") == "none" and \
+                not any(t.get("gate", "none") != "none" for t in steps[i + 1:]):
+            raise ValueError(f"step '{st['id']}' writes code without a gate: it needs a later gated step (pr)")
 
 
 def load(card_dir):
@@ -56,7 +61,7 @@ def save(card_dir, state):
 
 
 def init(card_dir, steps, workflow=None):
-    validate_steps(steps)
+    validate_steps(steps, run=True)
     if os.path.basename(os.path.abspath(card_dir)) == "done":
         raise ValueError("card id 'done' is reserved (/approve done); rename the card")
     if os.path.exists(os.path.join(card_dir, "state.json")):
@@ -189,7 +194,7 @@ def add(card_dir, after_id, step):
     if after_id not in ids:
         raise ValueError(f"unknown step '{after_id}'")
     steps = s["steps"][: ids.index(after_id) + 1] + [step] + s["steps"][ids.index(after_id) + 1:]
-    validate_steps(steps)
+    validate_steps(steps, run=True)
     s["steps"] = steps
     save(card_dir, s)
     return s

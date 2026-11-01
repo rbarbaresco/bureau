@@ -39,6 +39,15 @@ class DeskTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "reserved"):
             desk.init(os.path.join(self.tmp, "desk", "done"), STEPS)
 
+    def test_ungated_code_step_needs_a_gate_after_it(self):
+        docs = {"id": "docs", "gate": "none", "writes_code": True}
+        pr = {"id": "pr", "gate": "approve"}
+        with self.assertRaisesRegex(ValueError, "later gated step"):
+            desk.init(self.card, STEPS + [docs])
+        desk.init(self.card, STEPS + [docs, pr])
+        with self.assertRaisesRegex(ValueError, "later gated step"):
+            desk.add(self.card, "pr", {"id": "docs2", "gate": "none", "writes_code": True})
+
     def test_invalid_steps_rejected(self):
         for bad in ([], [{"id": "a"}, {"id": "a"}], [{"id": "a", "gate": "maybe"}], [{"gate": "none"}],
                     [{"id": "a", "loop": True}], [{"id": "a", "gate": "none", "loop": True}]):
