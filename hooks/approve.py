@@ -22,7 +22,7 @@ def block(reason):
 
 def main():
     ev = json.load(sys.stdin)
-    m = re.match(r"\s*/approve\b(.*)", ev.get("prompt", ""), re.S)
+    m = re.match(r"\s*/approve\b(.*)", ev.get("prompt", ""))  # only the /approve line: a note below is ignored
     if not m:
         return
     words = m[1].split()[:2]

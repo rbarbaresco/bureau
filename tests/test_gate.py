@@ -233,7 +233,8 @@ class GateTest(unittest.TestCase):
                                     ("/approve TEST-APPROVE done", "done", "loop ended"),
                                     ("/approve done TEST-APPROVE", "done", "loop ended"),
                                     ("/approve done done", "done", "loop ended"),
-                                    ("/approve\nTEST-APPROVE\ndone", "done", "loop ended")):
+                                    ("/approve done\nthanks", "done", "loop ended"),  # only the /approve line counts
+                                    ("/approve\ndone", True, "round")):
             out = run(prompt)
             self.assertIn(says, out, prompt)
             self.assertIn("card=TEST-APPROVE", out.split())
