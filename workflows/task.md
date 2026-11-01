@@ -36,7 +36,7 @@ Load the repo rules. Read the code step's artifact and the branch diff (`git dif
 Find every README, doc and instruction file (`AGENTS.md`/`CLAUDE.md`) the change makes wrong or incomplete, and update
 it in the same branch, in the repo's own style. Commit before finishing: the `pr` step cannot commit.
 If nothing is stale, edit nothing and write `Docs: none needed, <reason>`.
-Write docs.md: each file updated and why, or the none-needed line. No gate: the human sees this diff at the `pr` gate.
+Write docs.md: each file updated and why, or the none-needed line. No gate: the human sees these commits at the `pr` gate.
 End the artifact with `## Open questions` (or "none").
 
 ## review

@@ -19,7 +19,10 @@ class WorkflowTest(unittest.TestCase):
             self.assertTrue(wf["steps"])
             code = [s for s in wf["steps"] if s["writes_code"]]
             self.assertTrue(code, name)
-            self.assertEqual(code[0]["gate"], "approve")  # later code steps (docs) may run ungated: pr is gated
+            self.assertEqual(code[0]["gate"], "approve")
+            for i, s in enumerate(wf["steps"]):  # an ungated code step (docs) is safe only if a gate follows it
+                if s["writes_code"] and s["gate"] == "none":
+                    self.assertTrue(any(t["gate"] == "approve" for t in wf["steps"][i + 1:]), f"{name}/{s['id']}")
             # the human approves something before any code is written (plan, or understand in `small`)
             before = wf["steps"][: wf["steps"].index(code[0])]
             self.assertTrue(any(s["gate"] == "approve" for s in before), name)

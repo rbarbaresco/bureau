@@ -8,6 +8,8 @@ gate: approve
 loop: true
 
 Each round: revise the document from the human's notes and the readers' comments, and write publish.md: the full
-text (or its path) and what changed since the last round. Publishing is a write outside Bureau, so it happens only after
-`/approve` on that round, then the next round starts. `/approve done` ends the step once no more versions are needed.
+text (or its path), where it will be published, and what changed since the last round. Publishing is a write outside
+Bureau, so it happens only after `/approve`: right after the approval (on `/approve` and on `/approve done`), publish the
+version just approved (now `publish.round-N.md`, the highest N) and add its link to that file, then start the next round
+or, after `done`, the next step. Never publish an unapproved round.
 End the artifact with `## Open questions` (or "none").

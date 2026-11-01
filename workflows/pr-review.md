@@ -31,9 +31,9 @@ writes_code: true
 
 Load the repo rules. Read the code step's artifact and the branch diff (`git diff origin/<base>...HEAD`).
 Find every README, doc and instruction file (`AGENTS.md`/`CLAUDE.md`) the change makes wrong or incomplete, and update
-it in the same branch, in the repo's own style. Commit before finishing: the `pr` step cannot commit.
+it in the same branch, in the repo's own style. Commit before finishing; do not push (the `reply` step pushes).
 If nothing is stale, edit nothing and write `Docs: none needed, <reason>`.
-Write docs.md: each file updated and why, or the none-needed line. No gate: the human sees this diff at the `pr` gate.
+Write docs.md: each file updated and why, or the none-needed line. No gate: `reply` lists these commits for the human.
 End the artifact with `## Open questions` (or "none").
 
 ## review
@@ -48,7 +48,7 @@ file stale? Rank a miss as a finding. Write review.md with findings ranked by se
 persona: staff-engineer
 gate: approve
 
-Draft the replies and show them to the human. Write reply.md (readable: which comment, what we say, the commit) and reply.json:
+Draft the replies and show them to the human. Write reply.md (readable: which comment, what we say, the commit; then any docs commits from docs.md, which the push also carries) and reply.json:
 `[{"in_reply_to": <review comment id or null>, "body": "..."}]`. A null id posts a PR comment. Replies to "disagree" and
 "needs a question" items say why, briefly; do not resolve threads (the reviewer does). `/approve` on this step runs
 `scripts/reply.py`, which pushes the branch (no force) and posts the replies.
