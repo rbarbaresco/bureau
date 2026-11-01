@@ -27,10 +27,12 @@ class PersonaTest(unittest.TestCase):
             self.assertIn(m.get("mode"), ("read-only", "writer"), f)
 
     def test_workflow_personas_exist_and_code_steps_are_writers(self):
-        for name in ("bugfix", "task", "small"):
-            for s in workflow.parse(os.path.join(ROOT, "workflows", name + ".md"))["steps"]:
+        files = [os.path.join(ROOT, d, f) for d in ("workflows", "steps") for f in os.listdir(os.path.join(ROOT, d))
+                 if f.endswith(".md")]
+        for path in files:
+            for s in workflow.parse(path)["steps"]:
                 p = os.path.join(PERSONAS, s["persona"] + ".md")
-                self.assertTrue(os.path.isfile(p), f"{name}/{s['id']}: persona {s['persona']}")
+                self.assertTrue(os.path.isfile(p), f"{path}/{s['id']}: persona {s['persona']}")
                 if s["writes_code"]:
                     self.assertEqual(frontmatter(p)["mode"], "writer")
 

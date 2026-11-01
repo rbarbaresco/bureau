@@ -241,6 +241,15 @@ class GateTest(unittest.TestCase):
             with open(os.path.join(card, "approvals.json")) as f:
                 self.assertEqual(json.load(f)["rounds"], value, prompt)
 
+    def test_ungated_docs_step_edits_only_after_build_approved(self):
+        steps = STEPS + [{"id": "docs", "gate": "none", "writes_code": True}]
+        self.state({"current": "docs", "steps": steps})
+        self.approve("plan")
+        self.ack()
+        self.assertIn("'build' is not approved", self.edit())
+        self.approve("plan", "build")
+        self.assertIsNone(self.edit())
+
     def test_later_code_step_allowed_after_loop_done(self):
         self.state({"current": "build", "steps": [{"id": "plan", "gate": "approve", "loop": True}, STEPS[1]]})
         write(os.path.join(self.card, "approvals.json"), json.dumps({"plan": "done"}))
