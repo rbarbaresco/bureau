@@ -222,7 +222,7 @@ Create `workflows/<name>.md`:
 
 ```markdown
 ---
-name: spike
+name: discovery
 use_when: Time-boxed investigation of an unknown; the output is a recommendation, not code.
 ---
 ## investigate
@@ -241,7 +241,7 @@ Write recommend.md: one recommendation, its trade-offs, and what you would do ne
 Rules: each `## heading` is a step id, unique within the file. Optional lines before the instructions: `persona:`, `gate:` (`none` or `approve`), `writes_code: true`, `loop: true` (gated steps only). `use_when` is what Bureau reads to pick a workflow, so write it as a short rule that also says when *not* to use it. Check it with:
 
 ```sh
-python3 scripts/workflow.py show spike
+python3 scripts/workflow.py show discovery
 python3 scripts/workflow.py list
 ```
 
