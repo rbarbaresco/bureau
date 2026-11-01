@@ -40,6 +40,20 @@ class WorkflowTest(unittest.TestCase):
             with self.assertRaises(ValueError, msg=fname):
                 workflow.parse(p)
 
+    def test_loop_parsed_as_bool(self):
+        p = os.path.join(tempfile.mkdtemp(), "l.md")
+        with open(p, "w") as f:
+            f.write("---\nname: l\nuse_when: y\n---\n## rounds\ngate: approve\nloop: true\n\nx\n## next\n\ny\n")
+        steps = workflow.parse(p)["steps"]
+        self.assertEqual([s["loop"] for s in steps], [True, False])
+        card = os.path.join(tempfile.mkdtemp(), "ABC-1")
+        workflow.start(p, card)
+        self.assertTrue(desk.load(card)["steps"][0]["loop"])
+        with open(p, "w") as f:
+            f.write("---\nname: l\nuse_when: y\n---\n## rounds\nloop: true\n\nx\n")
+        with self.assertRaises(ValueError):  # a loop needs a gate
+            workflow.parse(p)
+
     def test_start_creates_run_with_own_copy(self):
         card = os.path.join(tempfile.mkdtemp(), "ABC-1")
         workflow.start("bugfix", card)

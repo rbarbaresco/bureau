@@ -14,6 +14,7 @@ File format (workflows/<name>.md):
     persona: staff-engineer
     gate: none | approve | approve+check
     writes_code: true            (optional)
+    loop: true                   (optional, gated steps: /approve approves a round, /approve done ends it)
 
     Free-text instructions for the step.
 """
@@ -25,7 +26,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import desk
 
 BUREAU = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-KEYS = ("persona", "gate", "writes_code", "reads", "writes")
+KEYS = ("persona", "gate", "writes_code", "loop", "reads", "writes")
 
 
 def parse(path):
@@ -46,6 +47,7 @@ def parse(path):
             k, v = lines.pop(0).split(":", 1)
             step[k.strip()] = v.strip()
         step["writes_code"] = step.get("writes_code") == "true"
+        step["loop"] = step.get("loop") == "true"
         step.setdefault("gate", "none")
         step["instructions"] = "\n".join(lines).strip()
         steps.append(step)
@@ -80,7 +82,7 @@ if __name__ == "__main__":
                     print(f"{w['name']}: {w['use_when']}")
         elif a[:1] == ["show"] and len(a) == 2:
             for s in parse(resolve(a[1]))["steps"]:
-                print(s["id"], s["gate"], s.get("persona", "-"), "writes_code" if s["writes_code"] else "")
+                print(s["id"], s["gate"], s.get("persona", "-"), "writes_code" if s["writes_code"] else "", "loop" if s["loop"] else "")
         elif a[:1] == ["start"] and len(a) == 3:
             start(a[1], a[2])
         else:
