@@ -124,8 +124,8 @@ What happens next:
 
    | You type | Result |
    |---|---|
-   | `/approve` | The gate is recorded and the run moves to the next step |
-   | `/approve done` | The same, and on a looping step (`loop: true`) it also ends the loop. On a looping step, a plain `/approve` approves the round, keeps it as `<step>.round-1.md`, and the step runs again |
+   | `/approve` | The gate is recorded and the run moves to the next step (on a looping step: the round is approved and the step runs again) |
+   | `/approve done` | On a looping step (`loop: true`): approves the last round and moves on; earlier rounds are kept as `<step>.round-N.md`. Elsewhere, the same as `/approve` |
    | Feedback in plain words | The same step runs again; the old artifact is kept as `plan.v1.md` and your words as `plan.feedback-1.md` |
    | "Go back to plan, the approach is wrong" | The run returns to that step; later approvals are cleared and your reason is kept as `reject-1.md` |
 
@@ -304,8 +304,9 @@ Anything personal (a persona with your company's conventions, a private workflow
 | You see | Cause and fix |
 |---|---|
 | "Repo rules for 'x' are not loaded or changed" | Run the command in the message (`python3 hooks/rules.py desk/<card>/worktrees/<repo>`). Bureau normally does this itself |
+| "Loop 'x' has not ended. Only the user ends it, with /approve done." | A looping step before the code step has approved rounds but was never ended: type `/approve done` at its next round |
 | "Gate 'plan' is not approved" | Type `/approve` (or `/approve <card-id>` if more than one card is waiting) |
-| "/approve needs exactly one awaiting card owned by this session; found N. Use /approve <card-id>." | Zero or several cards are waiting for this session: add the card id |
+| "/approve needs exactly one awaiting card owned by this session; found N. Use /approve <card-id> [done]." | Zero or several cards are waiting for this session: add the card id (keep `done` if you were ending a loop) |
 | "Card x is held by session …" or "…is held by live session … there is no override" | Another live session owns the card. Close it, then run `/work <card-id>` |
 | "Card x has no live owner session. Run /work x to take over." | The owner ended or died. Run `/work <card-id>` in this session |
 | "Step 'x' does not write code" | The run is not on a build step yet; finish the earlier steps. Non-build steps can still run the read-only commands in the "A read-only command is denied" row |

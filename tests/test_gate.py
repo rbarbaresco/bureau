@@ -230,7 +230,10 @@ class GateTest(unittest.TestCase):
         write(os.path.join(card, "state.json"), json.dumps(
             {"awaiting": "rounds", "steps": [{"id": "rounds", "gate": "approve", "loop": True}]}))
         for prompt, value, says in (("/approve", True, "round"), ("/approve done", "done", "loop ended"),
-                                    ("/approve TEST-APPROVE done", "done", "loop ended")):
+                                    ("/approve TEST-APPROVE done", "done", "loop ended"),
+                                    ("/approve done TEST-APPROVE", "done", "loop ended"),
+                                    ("/approve done done", "done", "loop ended"),
+                                    ("/approve\nTEST-APPROVE\ndone", "done", "loop ended")):
             out = run(prompt)
             self.assertIn(says, out, prompt)
             self.assertIn("card=TEST-APPROVE", out.split())
@@ -242,6 +245,12 @@ class GateTest(unittest.TestCase):
         write(os.path.join(self.card, "approvals.json"), json.dumps({"plan": "done"}))
         self.ack()
         self.assertIsNone(self.edit())
+
+    def test_later_code_step_denied_while_loop_only_has_a_round_approved(self):
+        self.state({"current": "build", "steps": [{"id": "plan", "gate": "approve", "loop": True}, STEPS[1]]})
+        self.approve("plan")  # a round approval (true), not the end of the loop
+        self.ack()
+        self.assertIn("/approve done", self.edit())
 
 
 if __name__ == "__main__":

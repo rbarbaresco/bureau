@@ -22,7 +22,7 @@ def block(reason):
 
 def main():
     ev = json.load(sys.stdin)
-    m = re.match(r"\s*/approve\b(.*)", ev.get("prompt", ""))
+    m = re.match(r"\s*/approve\b(.*)", ev.get("prompt", ""), re.S)
     if not m:
         return
     words = m[1].split()[:2]
@@ -38,7 +38,7 @@ def main():
         if state.get("awaiting") and (os.path.basename(card) == want if want else sessions.status(card, ev.get("session_id")) == "mine"):
             cards.append((card, state))
     if len(cards) != 1:
-        block(f"/approve needs exactly one awaiting card owned by this session; found {len(cards)}. Use /approve <card-id>.")
+        block(f"/approve needs exactly one awaiting card owned by this session; found {len(cards)}. Use /approve <card-id> [done].")
     card, state = cards[0]
     path = os.path.join(card, "approvals.json")
     try:

@@ -36,7 +36,7 @@ the card text. Still show the rest of the overview, but do not propose a workflo
 ## 3. Workflow
 
 - `python3 scripts/workflow.py list` prints each workflow's "use when". Pick the best match and give the reason in one line,
-  or say none fits and propose a custom step list (same format as `workflows/*.md`: `## step-id`, `persona:`, `gate:`, `writes_code:`, instructions;
+  or say none fits and propose a custom step list (same format as `workflows/*.md`: `## step-id`, `persona:`, `gate:`, `writes_code:`, `loop:` (gated steps that repeat), instructions;
   write it to `desk/<card-id>/workflow.md`). If the user named a workflow, use it.
 - Show the steps with their persona and gate (`python3 scripts/workflow.py show <name|file>`).
   If the repo's rules require an entry that needs the PR number (a changelog fragment), propose a `followup` step after `pr` (see the README, *A follow-up that needs the PR number*).
@@ -74,7 +74,7 @@ the artifact's `## Open questions` when there are any. A failed or blocked state
 | State | Run | Needed |
 |---|---|---|
 | Intake done / workflow proposed | reply "ok", or name a workflow | confirm or edit the steps: add, skip, reorder, change a gate or persona |
-| Gated step finished | `/approve <card-id>` | feedback ("redoes this step"), "go back to <step>", or the open questions |
+| Gated step finished | `/approve <card-id>` (looping step: also `/approve <card-id> done` to end it) | feedback ("redoes this step"), "go back to <step>", or the open questions |
 | Validity is not `valid` or `real bug` | none | continue, close the card, or fix the card text |
 | Step blocked (hook denied an edit, no card awaiting) | the command the error names | what the error says is missing |
 | Fetch failed or tool missing | none | paste the ticket text |
