@@ -6,7 +6,5 @@ use_when: Always the first step: read the card and the code it points at. Gate `
 persona: staff-engineer
 gate: none
 
-Read card.md and the relevant code. Write understand.md: what is asked, acceptance criteria as a checklist,
-open questions. With no plan step after this one, also write the proposed change (for docs, the draft wording) and set
-`gate: approve`: that approval is what allows code. Ask the human anything blocking before moving on.
+Read card.md and the relevant code. Write understand.md: what is asked, acceptance criteria as a checklist, open questions. With no plan step after this one, also write the proposed change (for docs, the draft wording) and set `gate: approve`: that approval is what allows code. Ask the human anything blocking before moving on.
 End the artifact with `## Open questions` (or "none").

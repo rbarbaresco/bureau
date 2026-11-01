@@ -7,6 +7,5 @@ persona: architect
 gate: approve
 
 Write plan.md: approach, files and callers affected, test strategy, risks, and what is deliberately out of scope.
-Stop here; the human approves before any code. Set `loop: true` only if every version of the plan is something
-the human signs off in turn; plain feedback already redoes the step.
+Stop here; the human approves before any code. Set `loop: true` only if every version of the plan is something the human signs off in turn; plain feedback already redoes the step.
 End the artifact with `## Open questions` (or "none").

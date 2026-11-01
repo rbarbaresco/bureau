@@ -6,7 +6,5 @@ use_when: The answer is not in the code: library or API behaviour, options to co
 persona: architect
 gate: none
 
-Find out. Read primary sources (official docs, the library's source, changelogs) and, where reading is not enough,
-try the options in the scratchpad: throwaway code, never the worktree. Write research.md: the question, findings with
-links or file:line, what was tried and what happened, one recommendation, and what is still unknown.
+Find out. Read primary sources (official docs, the library's source, changelogs) and, where reading is not enough, try the options in the scratchpad: throwaway code, never the worktree. Write research.md: the question, findings with links or file:line, what was tried and what happened, one recommendation, and what is still unknown.
 End the artifact with `## Open questions` (or "none").
