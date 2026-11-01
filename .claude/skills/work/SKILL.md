@@ -67,12 +67,13 @@ For the current step in `state.json`:
    Add or skip steps on request: `desk.py add desk/<card-id> <after-step> '<step-json>'`, `desk.py skip desk/<card-id> <step>`.
 7. When `current` is `done`: summarize what was delivered and where (worktree paths, branches, PR link from `pr.md`, or for a `reply` card the replies posted). If `pr.md` exists with no `## Opened` section, the PR was not opened: run `python3 scripts/pr.py desk/<card-id>` (it works on a done card). If `reply.json` has entries without `"posted": true`, run `python3 scripts/reply.py desk/<card-id>` instead.
 
-Resume: if `awaiting` is set and `approvals.json` has it, run `desk.py advance` (for `pr`, run `python3 scripts/pr.py desk/<card-id>` first; for `reply`, run `python3 scripts/reply.py desk/<card-id>` first); if not approved, show the artifact and remind the user to `/approve`.
+Resume: if `awaiting` is set and `approvals.json` has it, run `desk.py advance` (for `pr`, run `python3 scripts/pr.py desk/<card-id>` first; for `reply`, run `python3 scripts/reply.py desk/<card-id>` first); if not approved, show the artifact and end with the block `python3 scripts/desk.py next desk/<card-id>` prints.
 
 ## Next block
 
 Every `/work` and `/approve` reply ends with a **Next** block, just before the location block. Once a run has started, paste
-the last block `desk.py finish` or `desk.py advance` printed: its `State` line names the card, workflow and step, and at a gate
+the last block `desk.py finish` or `desk.py advance` printed, or run `desk.py next desk/<card-id>` (read-only) when this reply ran
+neither (resume, a failed `/approve`): its `State` line names the card, workflow and step, and at a gate
 its `After` line says what `/approve` starts. Otherwise write it in the same shape from this table; `Needed` quotes
 the artifact's `## Open questions` when there are any. A failed or blocked state names the exact command, or asks for the missing input.
 

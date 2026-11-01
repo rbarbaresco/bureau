@@ -3,14 +3,14 @@
 
 Usage: desk.py init <card-dir> '<steps-json>'
        desk.py list [desk-dir]
-       desk.py finish|advance <card-dir>
+       desk.py finish|advance|next <card-dir>
        desk.py revise <card-dir> '<feedback>'
        desk.py reject <card-dir> <to-step> '<reason>'
        desk.py add <card-dir> <after-step-id> '<step-json>' | skip <card-dir> <step-id>
        desk.py doctor [card-dir]
 
 finish: current step is done; a gated step then waits (`awaiting`) for the human's /approve.
-finish also prints the human's Next block (command to run, what to answer).
+finish, advance and next print the human's Next block (state, command to run, what /approve starts); next changes nothing.
 advance: moves on once the awaiting step is approved (approvals.json is written only by the hook).
 doctor: one line per problem on a card (every active card if none given), each naming its fix; exits 1 if any
 is left. Its only write is relinking worktrees whose paths moved (git worktree repair, idempotent).
@@ -159,7 +159,9 @@ def next_block(card_dir, state):
                 f"  Needed:  1. Read {os.path.join(card_dir, aw + '.md')}\n"
                 f"           2. Answer the open questions in it")
     if cur == "done":
-        return f"Next\n{where}  Run:     none\n  Needed:  merge the draft PR (yours)"
+        ids = _ids(state)
+        needed = "merge the draft PR (yours)" if "pr" in ids else "nothing; the PR's author merges" if "reply" in ids else "nothing"
+        return f"Next\n{where}  Run:     none\n  Needed:  {needed}"
     return f"Next\n{where}  Run:     none (continuing with {cur})"
 
 
@@ -366,12 +368,12 @@ if __name__ == "__main__":
         cmd = {"init": lambda: init(a[1], json.loads(a[2])), "finish": lambda: finish(a[1]),
                "advance": lambda: advance(a[1]), "revise": lambda: revise(a[1], a[2]),
                "reject": lambda: reject(a[1], a[2], a[3]), "add": lambda: add(a[1], a[2], json.loads(a[3])),
-               "skip": lambda: skip(a[1], a[2])}[a[0]]
+               "skip": lambda: skip(a[1], a[2]), "next": lambda: load(a[1])}[a[0]]
     except (IndexError, KeyError):
         sys.exit(__doc__)
     try:
         out = cmd()
-        if a[0] in ("finish", "advance"):
+        if a[0] in ("finish", "advance", "next"):
             print(next_block(a[1], out))
     except ValueError as e:
         sys.exit(f"error: {e}")

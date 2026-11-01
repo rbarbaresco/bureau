@@ -49,7 +49,7 @@ class TransitionTest(unittest.TestCase):
             desk.advance(self.card)
         out = desk.next_block(self.card, desk.finish(self.card))
         self.assertIn("Run:     none", out)
-        self.assertIn("merge the draft PR", out)
+        self.assertIn("Needed:  nothing", out)  # STEPS has no pr step, so no PR to merge
         self.assertNotIn("/approve", out)
 
     def test_next_block_names_each_cards_own_id_when_two_await(self):
@@ -107,6 +107,37 @@ class TransitionTest(unittest.TestCase):
         out = subprocess.run([sys.executable, os.path.join(os.path.dirname(desk.__file__), "desk.py"), "advance", self.card],
                              capture_output=True, text=True, check=True).stdout
         self.assertIn("State:   ABC-1 · ? · step 2 of 3 (build)", out)
+
+    def test_next_block_reply_step_says_it_posts(self):
+        card = os.path.join(tempfile.mkdtemp(), "PRR-1")
+        desk.init(card, [{"id": "reply", "gate": "approve"}], "pr-review")
+        self.assertIn("pushes the branch and posts reply.json, then the run ends", desk.next_block(card, desk.finish(card)))
+
+    def test_next_block_done_names_the_merge_only_when_the_run_opened_a_pr(self):
+        for steps, needed in (([{"id": "pr", "gate": "none"}], "merge the draft PR (yours)"),
+                              ([{"id": "reply", "gate": "none"}], "nothing; the PR's author merges"),
+                              ([{"id": "plan", "gate": "none"}], "nothing")):
+            card = os.path.join(tempfile.mkdtemp(), "D-1")
+            desk.init(card, steps)
+            self.assertIn(f"Needed:  {needed}", desk.next_block(card, desk.finish(card)))
+
+    def test_cli_next_prints_the_block_from_saved_state_without_changing_it(self):
+        desk.finish(self.card)
+        before = desk.load(self.card)
+        out = subprocess.run([sys.executable, os.path.join(os.path.dirname(desk.__file__), "desk.py"), "next", self.card],
+                             capture_output=True, text=True, check=True).stdout
+        self.assertIn("State:   ABC-1 · ? · step 1 of 3 (plan), awaiting /approve", out)
+        self.assertEqual(desk.load(self.card), before)
+
+    def test_advance_on_a_loop_round_and_into_done_print_state(self):
+        card = self.loop_card()
+        desk.finish(card)
+        self.approve_loop(card, True)
+        self.assertIn("step 1 of 2 (rounds)", desk.next_block(card, desk.advance(card)))
+        desk.finish(card)
+        self.approve_loop(card, "done")
+        desk.advance(card)
+        self.assertIn("done (2 steps)", desk.next_block(card, desk.finish(card)))
 
     def loop_card(self):
         card = os.path.join(tempfile.mkdtemp(), "LOOP-1")
