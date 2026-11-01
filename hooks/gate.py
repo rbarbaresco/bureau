@@ -5,7 +5,8 @@ Denies code writes inside desk/<card>/worktrees/<repo>/ unless
 1. the card's current step may write code and every earlier gated step is approved
    (approvals.json, written only by approve.py), and
 2. the repo's rule files were loaded through rules.py and have not changed since, and
-3. the card is not owned by another session (sessions.py); desk.py state commands obey the same owner check.
+3. the card is not owned by another session (sessions.py); desk.py state commands obey the same owner check,
+   except `list`, `init` and a lone `doctor` (its only write is git's worktree link repair).
 Subagent calls arrive with the same payload (plus agent_id), so they are covered too.
 """
 import json

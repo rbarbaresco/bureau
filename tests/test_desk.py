@@ -157,6 +157,20 @@ class DoctorTest(unittest.TestCase):
         subprocess.run(["git", "-C", wt, "status"], check=True, capture_output=True)
         self.assertEqual(self.doctor(card, clone), [])  # idempotent
 
+    def test_branch_check_skipped_without_pr_step(self):
+        subprocess.run(["git", "-C", self.wt, "checkout", "-q", "-b", "pr-head"], check=True)
+        self.set(steps=STEPS)  # pr-review style: the worktree sits on the PR's head branch
+        self.assertEqual(self.doctor(), [])
+
+    def test_worktree_dir_without_git_is_reported(self):
+        os.makedirs(os.path.join(self.card, "worktrees", "stray"))
+        [line] = self.doctor()
+        self.assertIn("worktree stray is not a git worktree", line)
+
+    def test_next_block_names_the_folder_not_a_stale_state_card(self):
+        self.set(card="OLD-1", awaiting="plan")
+        self.assertIn("/approve ABC-1", desk.next_block(self.card, desk.load(self.card)))
+
     def test_broken_worktree_without_a_valid_repos_path_is_reported(self):
         os.rename(self.clone, self.clone + "-gone")
         [line] = self.doctor(clone=self.clone)
@@ -175,6 +189,31 @@ class DoctorTest(unittest.TestCase):
                            env={**os.environ, "BUREAU_REPOS": repos, "BUREAU_DESK": os.path.join(self.tmp, "desk")})
         self.assertEqual(r.returncode, 1, r.stderr)
         self.assertEqual(r.stdout.strip(), "XYZ-2: no claim log. Fix: /work XYZ-2")
+
+    def test_cli_keeps_sweeping_past_a_malformed_card(self):
+        bad = os.path.join(self.tmp, "desk", "AAA-0")  # walked before ABC-1
+        os.makedirs(bad)
+        with open(os.path.join(bad, "state.json"), "w") as f:
+            f.write("{bad")
+        nosteps = os.path.join(self.tmp, "desk", "AAB-0")
+        os.makedirs(nosteps)
+        with open(os.path.join(nosteps, "state.json"), "w") as f:
+            json.dump({"current": "plan"}, f)
+        os.remove(os.path.join(self.card, "sessions" + ".jsonl"))  # a problem on the healthy card, found after them
+        r = subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "desk.py"), "doctor"], capture_output=True,
+                           text=True, env={**os.environ, "BUREAU_REPOS": os.path.join(self.tmp, "none.yaml"),
+                                           "BUREAU_DESK": os.path.join(self.tmp, "desk")})
+        self.assertEqual(r.returncode, 1)
+        self.assertNotIn("Traceback", r.stderr)
+        self.assertIn("AAA-0: state.json unreadable", r.stdout)
+        self.assertIn("AAB-0: state.json unreadable", r.stdout)
+        self.assertIn("ABC-1: no claim log", r.stdout)
+        r = subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "desk.py"), "doctor",
+                            os.path.join(self.tmp, "desk", "TYPO-9")], capture_output=True, text=True,
+                           env={**os.environ, "BUREAU_DESK": os.path.join(self.tmp, "desk")})
+        self.assertEqual(r.returncode, 1)
+        self.assertNotIn("Traceback", r.stderr)
+        self.assertIn("TYPO-9: state.json unreadable", r.stdout)
 
 
 if __name__ == "__main__":

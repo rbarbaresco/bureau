@@ -108,11 +108,11 @@ Start with something small and low risk, such as a typo or a failing test in a r
 
 | You give | Bureau does |
 |---|---|
-| A GitHub issue or PR URL, or `owner/repo#123` | Reads it with `gh`. The card id is `repo-123` |
+| A GitHub issue or PR URL, `owner/repo#123`, or `repo 123` | Reads it with `gh`. The card id is `repo-123` |
 | A Jira key (`SHOP-42`) or URL | Reads it with `acli` |
 | A Sentry link | Uses a connected Sentry tool if you have one, else asks you to paste the issue |
 | Pasted text | Uses it as the card. A short card id is made from the title |
-| An existing card id (or `owner/repo#123` for `repo-123`) | Resumes that run where it stopped |
+| An existing card id (or `owner/repo#123` / `repo 123` for `repo-123`) | Resumes that run where it stopped |
 
 What happens next:
 

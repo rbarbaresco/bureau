@@ -255,7 +255,9 @@ def doctor(card_dir, repos):
     root = os.path.join(card_dir, "worktrees")
     for repo in sorted(os.listdir(root)) if os.path.isdir(root) else []:
         wt = os.path.join(root, repo)
-        if not os.path.exists(os.path.join(wt, ".git")):
+        if not os.path.exists(os.path.join(wt, ".git")):  # without it, git would answer for a parent repo
+            out.append(f"worktree {repo} is not a git worktree (no .git). "
+                       f"Fix: remove {wt}, then python3 scripts/worktree.py {card_dir} {repo}")
             continue
         if not _linked(wt):
             clone = repos.get(repo, {}).get("path")
@@ -286,8 +288,13 @@ if __name__ == "__main__":
         except (OSError, ValueError):
             repos = {}  # every broken worktree then reports repos.yaml
         desk_dir = os.environ.get("BUREAU_DESK") or os.path.join(worktree.BUREAU, "desk")
-        found = [(os.path.relpath(os.path.abspath(c), desk_dir), x)
-                 for c in ([a[1]] if len(a) > 1 else _cards(desk_dir)) for x in doctor(c, repos)]
+        found = []
+        for c in [a[1]] if len(a) > 1 else _cards(desk_dir):
+            try:
+                lines = doctor(c, repos)
+            except (OSError, ValueError, KeyError, TypeError, AttributeError) as e:  # one broken card must not end the sweep
+                lines = [f"state.json unreadable ({type(e).__name__}: {e}). Fix: restore it, or archive the card"]
+            found += [(os.path.relpath(os.path.abspath(c), desk_dir), x) for x in lines]
         print("\n".join(f"{c}: {x}" for c, x in found) or "all cards healthy")
         sys.exit(1 if any(not x.startswith("fixed:") for _, x in found) else 0)
     try:

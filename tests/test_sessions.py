@@ -83,6 +83,8 @@ class SessionsTest(unittest.TestCase):
         self.assertIsNone(self.desk_cmd("finish", "s1"))
         self.assertIsNone(self.desk_cmd("list", "s2"))
         self.assertIsNone(self.desk_cmd("doctor", "s2"))  # an unowned card is exactly what doctor is for
+        chained = f"python3 {LINK}/scripts/desk.py doctor {self.card}; python3 {LINK}/scripts/desk.py finish {self.card}"
+        self.assertIn("ABC-1", self.gate("s2", command=chained) or "")  # denied: the exemption covers doctor alone
         self.own("s1", 2 ** 22 + 1)  # dead owner
         self.assertIsNone(self.desk_cmd("doctor", "s2"))
 
