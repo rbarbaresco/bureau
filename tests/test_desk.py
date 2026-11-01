@@ -35,8 +35,13 @@ class DeskTest(unittest.TestCase):
         with self.assertRaises(FileExistsError):
             desk.init(self.card, STEPS)
 
+    def test_done_is_a_reserved_card_id(self):
+        with self.assertRaisesRegex(ValueError, "reserved"):
+            desk.init(os.path.join(self.tmp, "desk", "done"), STEPS)
+
     def test_invalid_steps_rejected(self):
-        for bad in ([], [{"id": "a"}, {"id": "a"}], [{"id": "a", "gate": "maybe"}], [{"gate": "none"}]):
+        for bad in ([], [{"id": "a"}, {"id": "a"}], [{"id": "a", "gate": "maybe"}], [{"gate": "none"}],
+                    [{"id": "a", "loop": True}], [{"id": "a", "gate": "none", "loop": True}]):
             with self.assertRaises(ValueError):
                 desk.validate_steps(bad)
 

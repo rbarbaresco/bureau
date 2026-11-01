@@ -14,7 +14,9 @@ finish also prints the human's Next block (command to run, what to answer).
 advance: moves on once the awaiting step is approved (approvals.json is written only by the hook).
 doctor: one line per problem on a card (every active card if none given), each naming its fix; exits 1 if any
 is left. Its only write is relinking worktrees whose paths moved (git worktree repair, idempotent).
-A step is {"id", "gate": none|approve|approve+check, "persona"?, "writes_code"?}.
+A step is {"id", "gate": none|approve|approve+check, "persona"?, "writes_code"?, "loop"?}.
+loop: a gated step that repeats. /approve approves a round (artifact kept as <step>.round-N.md, step stays current);
+/approve done (recorded as "done") approves the last round and advances.
 """
 import json
 import os
@@ -36,6 +38,8 @@ def validate_steps(steps):
             raise ValueError(f"step needs a string id: {s!r}")
         if s.get("gate", "none") not in GATES:
             raise ValueError(f"step '{s['id']}': gate must be one of {GATES}")
+        if s.get("loop") and s.get("gate", "none") == "none":
+            raise ValueError(f"step '{s['id']}': a loop needs a gate")
         ids.append(s["id"])
     if len(set(ids)) != len(ids):
         raise ValueError("duplicate step ids")
@@ -53,6 +57,8 @@ def save(card_dir, state):
 
 def init(card_dir, steps, workflow=None):
     validate_steps(steps)
+    if os.path.basename(os.path.abspath(card_dir)) == "done":
+        raise ValueError("card id 'done' is reserved (/approve done); rename the card")
     if os.path.exists(os.path.join(card_dir, "state.json")):
         raise FileExistsError(f"{card_dir} already has a run; resume it instead")
     os.makedirs(os.path.join(card_dir, "worktrees"), exist_ok=True)
@@ -86,14 +92,14 @@ def _next(state, step_id):
     return ids[i] if i < len(ids) else "done"
 
 
-def _version(card_dir, name, ext=".md"):
-    """Move <name>.md to <name>.v<N>.md so a redo keeps history."""
+def _version(card_dir, name, ext=".md", tag="v"):
+    """Move <name>.md to <name>.<tag><N>.md so a redo (or an approved loop round) keeps history."""
     cur = os.path.join(card_dir, name + ext)
     n = 1
-    while os.path.exists(os.path.join(card_dir, f"{name}.v{n}{ext}")):
+    while os.path.exists(os.path.join(card_dir, f"{name}.{tag}{n}{ext}")):
         n += 1
     if os.path.exists(cur):
-        os.rename(cur, os.path.join(card_dir, f"{name}.v{n}{ext}"))
+        os.rename(cur, os.path.join(card_dir, f"{name}.{tag}{n}{ext}"))
     return n
 
 
@@ -116,7 +122,11 @@ def next_block(card_dir, state):
     aw, cur = state.get("awaiting"), state["current"]
     if aw:
         # the folder is the id everywhere (/approve, branches); state["card"] goes stale if it is renamed
-        return (f"Next\n  Run:     /approve {os.path.basename(os.path.abspath(card_dir))}\n"
+        cid = os.path.basename(os.path.abspath(card_dir))
+        loop = state["steps"][_ids(state).index(aw)].get("loop")
+        done = (f"  Or:      /approve {cid} done -> approves this round and ends the loop\n" if loop else "")
+        return (f"Next\n  Run:     /approve {cid}{'   -> approves this round, then the next round' if loop else ''}\n"
+                f"{done}"
                 f"  Or:      reply with feedback           -> redoes {aw}\n"
                 f"           \"go back to <step>\"           -> reopens an earlier step\n"
                 f"  Needed:  1. Read {os.path.join(card_dir, aw + '.md')}\n"
@@ -131,10 +141,16 @@ def advance(card_dir):
     aw = s.get("awaiting")
     if not aw:
         raise ValueError("no step is awaiting approval")
-    if not _approvals(card_dir).get(aw):
+    approved = _approvals(card_dir).get(aw)
+    if not approved:
         raise ValueError(f"step '{aw}' is not approved; the human must run /approve")
     s["awaiting"] = None
-    s["current"] = _next(s, aw)
+    if s["steps"][_ids(s).index(aw)].get("loop") and approved != "done":
+        _version(card_dir, aw, tag="round-")  # round approved: keep it, stay for the next one
+        _unapprove(card_dir, [aw])  # the next round needs its own /approve
+        s["current"] = aw
+    else:
+        s["current"] = _next(s, aw)
     save(card_dir, s)
     return s
 

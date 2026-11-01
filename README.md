@@ -75,7 +75,7 @@ Bureau runs on Linux. Card ownership (see [How it works](#how-it-works)) finds t
    repos:
      shop:                       # the name you use for the repo in workflows
        path: ~/code/shop         # an existing clone
-       base: main                # branch that new worktrees start from
+       base: main                # new worktrees start from origin/main, fetched first
      shop-api:
        path: ~/code/shop-api
        base: develop
@@ -124,7 +124,8 @@ What happens next:
 
    | You type | Result |
    |---|---|
-   | `/approve` | The gate is recorded and the run moves to the next step |
+   | `/approve` | The gate is recorded and the run moves to the next step (on a looping step: the round is approved and the step runs again) |
+   | `/approve done` | On a looping step (`loop: true`): approves the last round and moves on; earlier rounds are kept as `<step>.round-N.md`. Elsewhere, the same as `/approve`. Only the `/approve` line is read: a card id or `done` on a later line is ignored |
    | Feedback in plain words | The same step runs again; the old artifact is kept as `plan.v1.md` and your words as `plan.feedback-1.md` |
    | "Go back to plan, the approach is wrong" | The run returns to that step; later approvals are cleared and your reason is kept as `reject-1.md` |
 
@@ -157,7 +158,7 @@ In `small`, `understand` replaces the separate plan: your approval there is what
 
 **Docs line.** `bugfix`, `task`, `small` and `pr-review` end the code step with a `Docs:` line: the README or doc updates made in the same change, or `Docs: none needed, <reason>`. The review step ranks a miss as a finding. A docs-only change in `small` skips both. No hook checks it.
 
-**Step.** Has a persona, a gate (`none` or `approve`; `approve+check` is accepted but behaves exactly like `approve`, `scripts/desk.py:20`) and, for steps that edit code, `writes_code: true`.
+**Step.** Has a persona, a gate (`none` or `approve`; `approve+check` is accepted but behaves exactly like `approve`, `scripts/desk.py:20`) and, for steps that edit code, `writes_code: true`. A gated step can set `loop: true` to repeat: each `/approve` approves one round and keeps the step current, and `/approve done` (or `/approve <card-id> done`) approves the last round and moves on. `done` is ignored on a step that does not loop, and it is reserved: no card can be named `done`.
 
 **Persona.** A markdown file in `personas/` describing a role: what it cares about and how it reports. `writer` personas work in your session. `read-only` personas run as subagents that cannot edit files. Shipped: `architect`, `staff-engineer`, `qa`, `journalist`, `prompt-engineer`.
 
@@ -175,6 +176,7 @@ desk/SHOP-42/
   plan.md fix.md     one artifact per finished step
   plan.v1.md         an artifact replaced by a redo
   plan.feedback-1.md your feedback that caused the redo (desk.py revise)
+  review.round-1.md  an approved round of a looping step
   reject-1.md        why you sent the run back to an earlier step (desk.py reject)
   consult-architect-1.md  an answer from /consult
   sessions.jsonl     which session owns the card (written by hooks)
@@ -234,7 +236,7 @@ gate: approve
 Write recommend.md: one recommendation, its trade-offs, and what you would do next.
 ```
 
-Rules: each `## heading` is a step id, unique within the file. Optional lines before the instructions: `persona:`, `gate:` (`none` or `approve`), `writes_code: true`. `use_when` is what Bureau reads to pick a workflow, so write it as a short rule that also says when *not* to use it. Check it with:
+Rules: each `## heading` is a step id, unique within the file. Optional lines before the instructions: `persona:`, `gate:` (`none` or `approve`), `writes_code: true`, `loop: true` (gated steps only). `use_when` is what Bureau reads to pick a workflow, so write it as a short rule that also says when *not* to use it. Check it with:
 
 ```sh
 python3 scripts/workflow.py show spike
@@ -302,8 +304,9 @@ Anything personal (a persona with your company's conventions, a private workflow
 | You see | Cause and fix |
 |---|---|
 | "Repo rules for 'x' are not loaded or changed" | Run the command in the message (`python3 hooks/rules.py desk/<card>/worktrees/<repo>`). Bureau normally does this itself |
+| "Loop 'x' has not ended. Only the user ends it, with /approve done." | A looping step before the code step has approved rounds but was never ended (the run was moved past it by hand): say "go back to <loop step>", then type `/approve done` at its next round |
 | "Gate 'plan' is not approved" | Type `/approve` (or `/approve <card-id>` if more than one card is waiting) |
-| "/approve needs exactly one awaiting card owned by this session; found N. Awaiting: … Use /approve <card-id>." | Zero or several cards are waiting for this session: use one of the listed ids |
+| "/approve needs exactly one awaiting card owned by this session; found N. Awaiting: … Use /approve <card-id> [done]." | Zero or several cards are waiting for this session: use one of the listed ids (keep `done` if you were ending a loop) |
 | "Card x is held by session …" or "…is held by live session … there is no override" | Another live session owns the card. Close it, then run `/work <card-id>` |
 | "Card x has no live owner session. Run /work x to take over." | The owner ended or died. Run `/work <card-id>` in this session |
 | "Step 'x' does not write code" | The run is not on a build step yet; finish the earlier steps. Non-build steps can still run the read-only commands in the "A read-only command is denied" row |

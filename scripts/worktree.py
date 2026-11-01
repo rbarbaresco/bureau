@@ -2,7 +2,8 @@
 """Create a card's worktree from a registered clone.
 
 Usage: worktree.py <card-dir> <repo-name> [--repos repos.yaml] [--branch name]
-Creates <card-dir>/worktrees/<repo-name> on branch bureau/<card-id>, from the repo's `base`.
+Creates <card-dir>/worktrees/<repo-name> on branch bureau/<card-id>, from a freshly fetched origin/<base>
+(local <base> if the fetch fails); the clone's local <base> is fast-forwarded when that is safe.
 With --branch <name> it checks out the existing remote branch <name> instead (a PR's head), tracking origin.
 """
 import os
@@ -32,6 +33,26 @@ def read_repos(path):
     return repos
 
 
+def fresh_base(clone, base):
+    """Fetch origin's <base> and fast-forward the local <base> when safe; return the ref a new card branches from."""
+    git = lambda *a: subprocess.run(["git", "-C", clone, *a], capture_output=True, text=True)
+    remote = "refs/remotes/origin/" + base  # full ref: a local branch named origin/<base> would make the short name ambiguous
+    r = git("fetch", "origin", f"+refs/heads/{base}:{remote}")
+    if r.returncode:  # offline, auth, or no origin: still let the card start
+        print(f"warning: fetch of origin {base} failed, branching from the local {base} (may be stale): "
+              f"{r.stderr.strip()}", file=sys.stderr)
+        return base
+    if git("symbolic-ref", "-q", "--short", "HEAD").stdout.strip() == base:
+        ok = not git("status", "--porcelain", "--untracked-files=no").stdout and \
+            not git("merge", "-q", "--ff-only", remote).returncode
+    else:  # only fast-forwards; refused if <base> is checked out in another worktree
+        ok = not git("fetch", "-q", ".", f"{remote}:refs/heads/{base}").returncode
+    if not ok:
+        print(f"warning: local {base} in {clone} left as is (uncommitted changes, diverged, or checked out "
+              f"elsewhere); the card still starts from origin/{base}", file=sys.stderr)
+    return remote
+
+
 def add(card_dir, name, repos_file, branch=None):
     try:
         repos = read_repos(repos_file)
@@ -49,6 +70,8 @@ def add(card_dir, name, repos_file, branch=None):
         branch = "bureau/" + os.path.basename(os.path.abspath(card_dir))
     exists = subprocess.run(["git", "-C", clone, "rev-parse", "--verify", "-q", branch],
                             capture_output=True).returncode == 0
+    if not track and not exists:
+        base, track = fresh_base(clone, base), ["--no-track"]  # the card branch's upstream comes from pr.py's push -u
     cmd = ["git", "-C", clone, "worktree", "add"] + ([wt, branch] if exists else track + ["-b", branch, wt, base])
     subprocess.run(cmd, check=True)
     # a killed pytest run leaves .coverage.* behind and the untracked files block the push; the exclude file is
