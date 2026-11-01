@@ -71,18 +71,17 @@ Resume: if `awaiting` is set and `approvals.json` has it, run `desk.py advance` 
 
 ## Next block
 
-Every `/work` and `/approve` reply ends with a **Next** block, just before the location block. For a gated step, paste what
-`desk.py finish` printed (it names `/approve <card-id>`). Otherwise write it in the same shape from this table; `Needed` quotes
+Every `/work` and `/approve` reply ends with a **Next** block, just before the location block. Once a run has started, paste
+the last block `desk.py finish` or `desk.py advance` printed: its `State` line names the card, workflow and step, and at a gate
+its `After` line says what `/approve` starts. Otherwise write it in the same shape from this table; `Needed` quotes
 the artifact's `## Open questions` when there are any. A failed or blocked state names the exact command, or asks for the missing input.
 
 | State | Run | Needed |
 |---|---|---|
 | Intake done / workflow proposed | reply "ok", or name a workflow | confirm or edit the steps: add, skip, reorder, change a gate or persona |
-| Gated step finished | `/approve <card-id>` (looping step: also `/approve <card-id> done` to end it) | feedback ("redoes this step"), "go back to <step>", or the open questions |
 | Validity is not `valid` or `real bug` | none | continue, close the card, or fix the card text |
 | Step blocked (hook denied an edit, no card awaiting) | the command the error names | what the error says is missing |
 | Fetch failed or tool missing | none | paste the ticket text |
-| Run done | none | merge the draft PR (yours) |
 
 ## Rules
 

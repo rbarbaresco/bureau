@@ -129,7 +129,7 @@ What happens next:
    | Feedback in plain words | The same step runs again; the old artifact is kept as `plan.v1.md` and your words as `plan.feedback-1.md` |
    | "Go back to plan, the approach is wrong" | The run returns to that step; later approvals are cleared and your reason is kept as `reject-1.md` |
 
-Every `/work` and `/approve` reply ends with a **Next** block: the command to run (`/approve <card-id>`), the other answers you can give (feedback, "go back to <step>") and what is needed from you (the artifact to read, its open questions). `desk.py finish` prints it for a gated step (`next_block` in `scripts/desk.py`); the `work` and `approve` skills write it in the other states.
+Every `/work` and `/approve` reply ends with a **Next** block: the command to run (`/approve <card-id>`), the other answers you can give (feedback, "go back to <step>") and what is needed from you (the artifact to read, its open questions). Once a run has started, `desk.py finish` and `desk.py advance` print it (`next_block` in `scripts/desk.py`) with a `State` line (card, workflow, step N of M) and, at a gate, an `After` line naming what `/approve` starts: the next step with its persona and gate, plus the push and draft PR for `pr`. The `work` and `approve` skills write it in the states before a run or when a command fails.
 
 To continue a run in a new session, run `/work <card-id>` again. It resumes at the current step. A card has one owner session at a time (see [How it works](#how-it-works)), so the resume is refused while another live session holds it.
 

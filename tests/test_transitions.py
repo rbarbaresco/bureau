@@ -70,6 +70,44 @@ class TransitionTest(unittest.TestCase):
                              capture_output=True, text=True, check=True).stdout
         self.assertIn("Run:     /approve ABC-1", out)
 
+    def test_next_block_gated_says_where_the_card_stands_and_what_approve_starts(self):
+        card = os.path.join(tempfile.mkdtemp(), "ABC-9")
+        desk.init(card, [{"id": "plan", "gate": "approve", "persona": "architect"},
+                         {"id": "build", "gate": "approve", "persona": "staff-engineer"},
+                         {"id": "pr", "gate": "approve"}], "task")
+        out = desk.next_block(card, desk.finish(card))
+        self.assertIn("State:   ABC-9 · task · step 1 of 3 (plan), awaiting /approve", out)
+        self.assertIn("After:   /approve -> build starts (staff-engineer, gate approve)", out)
+        with open(os.path.join(card, "approvals.json"), "w") as f:
+            json.dump({"plan": True, "build": True}, f)
+        for _ in range(2):
+            desk.advance(card)
+            out = desk.next_block(card, desk.finish(card))
+        self.assertIn("step 3 of 3 (pr)", out)
+        self.assertIn("pushes the branch and opens a draft PR, then the run ends", out)
+
+    def test_next_block_running_and_done_carry_the_state_line(self):
+        s = desk.load(self.card)
+        s["steps"][0]["gate"] = "none"
+        desk.save(self.card, s)
+        self.assertIn("State:   ABC-1 · ? · step 2 of 3 (build)", desk.next_block(self.card, desk.finish(self.card)))
+        s = desk.load(self.card)
+        s["current"] = "done"
+        self.assertIn("State:   ABC-1 · ? · done (3 steps)", desk.next_block(self.card, s))
+
+    def test_next_block_loop_says_another_round_and_what_done_starts(self):
+        card = self.loop_card()
+        out = desk.next_block(card, desk.finish(card))
+        self.assertIn("After:   /approve -> another round of rounds", out)
+        self.assertIn("ends the loop; review starts (-, gate none)", out)
+
+    def test_cli_advance_prints_next_block(self):
+        desk.finish(self.card)
+        self.approve("plan")
+        out = subprocess.run([sys.executable, os.path.join(os.path.dirname(desk.__file__), "desk.py"), "advance", self.card],
+                             capture_output=True, text=True, check=True).stdout
+        self.assertIn("State:   ABC-1 · ? · step 2 of 3 (build)", out)
+
     def loop_card(self):
         card = os.path.join(tempfile.mkdtemp(), "LOOP-1")
         desk.init(card, [{"id": "rounds", "gate": "approve", "loop": True}, {"id": "review", "gate": "none"}])

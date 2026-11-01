@@ -122,23 +122,45 @@ def finish(card_dir):
     return s
 
 
+SIDE_EFFECTS = {"pr": "pushes the branch and opens a draft PR, then ",
+                "reply": "pushes the branch and posts reply.json, then "}  # what approve.py runs before advancing
+
+
+def _where(cid, state):
+    """One line naming the card, its workflow and its position, readable without the conversation."""
+    ids, cur, aw = _ids(state), state["current"], state.get("awaiting")
+    pos = f"done ({len(ids)} steps)" if cur == "done" else f"step {ids.index(cur) + 1} of {len(ids)} ({cur})"
+    return f"  State:   {cid} · {state.get('workflow') or '?'} · {pos}{', awaiting /approve' if aw else ''}\n"
+
+
+def _starts(state, step_id):
+    nxt = _next(state, step_id)
+    if nxt == "done":
+        return "the run ends"
+    s = state["steps"][_ids(state).index(nxt)]
+    return f"{nxt} starts ({s.get('persona', '-')}, gate {s.get('gate', 'none')})"
+
+
 def next_block(card_dir, state):
-    """The human-facing Next block for the state `finish` just left."""
+    """The human-facing Next block for the state `finish` or `advance` just left."""
     aw, cur = state.get("awaiting"), state["current"]
+    # the folder is the id everywhere (/approve, branches); state["card"] goes stale if it is renamed
+    cid = os.path.basename(os.path.abspath(card_dir))
+    where = _where(cid, state)
     if aw:
-        # the folder is the id everywhere (/approve, branches); state["card"] goes stale if it is renamed
-        cid = os.path.basename(os.path.abspath(card_dir))
         loop = state["steps"][_ids(state).index(aw)].get("loop")
-        done = (f"  Or:      /approve {cid} done -> approves this round and ends the loop\n" if loop else "")
-        return (f"Next\n  Run:     /approve {cid}{'   -> approves this round, then the next round' if loop else ''}\n"
+        after = SIDE_EFFECTS.get(aw, "") + _starts(state, aw)
+        done = (f"  Or:      /approve {cid} done -> approves this round and ends the loop; {after}\n" if loop else "")
+        return (f"Next\n{where}  Run:     /approve {cid}{'   -> approves this round, then the next round' if loop else ''}\n"
+                f"  After:   /approve -> {f'another round of {aw}' if loop else after}\n"
                 f"{done}"
                 f"  Or:      reply with feedback           -> redoes {aw}\n"
                 f"           \"go back to <step>\"           -> reopens an earlier step\n"
                 f"  Needed:  1. Read {os.path.join(card_dir, aw + '.md')}\n"
                 f"           2. Answer the open questions in it")
     if cur == "done":
-        return "Next\n  Run:     none\n  Needed:  merge the draft PR (yours)"
-    return f"Next\n  Run:     none (continuing with {cur})"
+        return f"Next\n{where}  Run:     none\n  Needed:  merge the draft PR (yours)"
+    return f"Next\n{where}  Run:     none (continuing with {cur})"
 
 
 def advance(card_dir):
@@ -349,7 +371,7 @@ if __name__ == "__main__":
         sys.exit(__doc__)
     try:
         out = cmd()
-        if a[0] == "finish":
+        if a[0] in ("finish", "advance"):
             print(next_block(a[1], out))
     except ValueError as e:
         sys.exit(f"error: {e}")
