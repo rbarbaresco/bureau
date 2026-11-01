@@ -36,8 +36,8 @@ def read_repos(path):
 def fresh_base(clone, base):
     """Fetch origin's <base> and fast-forward the local <base> when safe; return the ref a new card branches from."""
     git = lambda *a: subprocess.run(["git", "-C", clone, *a], capture_output=True, text=True)
-    remote = "origin/" + base
-    r = git("fetch", "origin", f"+refs/heads/{base}:refs/remotes/{remote}")
+    remote = "refs/remotes/origin/" + base  # full ref: a local branch named origin/<base> would make the short name ambiguous
+    r = git("fetch", "origin", f"+refs/heads/{base}:{remote}")
     if r.returncode:  # offline, auth, or no origin: still let the card start
         print(f"warning: fetch of origin {base} failed, branching from the local {base} (may be stale): "
               f"{r.stderr.strip()}", file=sys.stderr)
@@ -46,10 +46,10 @@ def fresh_base(clone, base):
         ok = not git("status", "--porcelain", "--untracked-files=no").stdout and \
             not git("merge", "-q", "--ff-only", remote).returncode
     else:  # only fast-forwards; refused if <base> is checked out in another worktree
-        ok = not git("fetch", "-q", ".", f"{remote}:{base}").returncode
+        ok = not git("fetch", "-q", ".", f"{remote}:refs/heads/{base}").returncode
     if not ok:
         print(f"warning: local {base} in {clone} left as is (uncommitted changes, diverged, or checked out "
-              f"elsewhere); the card still starts from {remote}", file=sys.stderr)
+              f"elsewhere); the card still starts from origin/{base}", file=sys.stderr)
     return remote
 
 

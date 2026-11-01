@@ -85,6 +85,12 @@ class WorktreeTest(unittest.TestCase):
         worktree.add(os.path.join(tmp, "desk", "A-1"), "clone", repos)
         self.assertEqual(self.rev(clone, "main"), tip)
 
+    def test_a_local_branch_named_like_the_remote_base_is_not_ambiguous(self):
+        tmp, clone, repos, tip = self.stale_clone()
+        subprocess.run(["git", "-C", clone, "branch", "origin/main"], check=True)
+        wt = worktree.add(os.path.join(tmp, "desk", "A-1"), "clone", repos)
+        self.assertEqual(self.rev(wt, "HEAD"), tip)
+
     def test_dirty_clone_keeps_its_local_base_but_the_card_still_starts_from_the_remote(self):
         tmp, clone, repos, tip = self.stale_clone()
         old = self.rev(clone, "main")
