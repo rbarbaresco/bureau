@@ -239,7 +239,11 @@ def doctor(card_dir, repos):
     if aw and aw not in ids:
         out.append(f"awaiting '{aw}' is not a step. Fix: python3 scripts/desk.py reject {card_dir} <step> '<reason>'")
     reached = ids[:ids.index(cur) + 1] if cur in ids else ids
-    approved = _approvals(card_dir)
+    try:
+        approved = _approvals(card_dir)
+    except (OSError, ValueError) as e:  # a folder, or not UTF-8
+        out.append(f"approvals.json is not readable ({type(e).__name__}). Fix: the human repairs it")
+        approved = {}
     if not isinstance(approved, dict):
         out.append("approvals.json is not an object, so desk.py advance cannot read it. Fix: the human repairs it")
         approved = {}
@@ -289,6 +293,18 @@ def doctor(card_dir, repos):
     return out
 
 
+def sweep(desk_dir, card, repos):
+    """(card, line) for one card or every active card; a crash inside doctor() is one line, not the end of the run."""
+    found = []
+    for c in [card] if card else _cards(desk_dir):
+        try:
+            lines = doctor(c, repos)
+        except Exception as e:  # state.json and approvals errors are reported inside doctor; this is for its bugs
+            lines = [f"could not check this card ({type(e).__name__}: {e}). Fix: report it as a doctor bug"]
+        found += [(os.path.relpath(os.path.abspath(c), desk_dir), x) for x in lines]
+    return found
+
+
 if __name__ == "__main__":
     a = sys.argv[1:]
     if a[:1] == ["list"]:
@@ -299,14 +315,7 @@ if __name__ == "__main__":
             repos = worktree.read_repos(os.environ.get("BUREAU_REPOS", os.path.join(worktree.BUREAU, "repos.yaml")))
         except (OSError, ValueError):
             repos = {}  # every broken worktree then reports repos.yaml
-        desk_dir = os.environ.get("BUREAU_DESK") or os.path.join(worktree.BUREAU, "desk")
-        found = []
-        for c in [a[1]] if len(a) > 1 else _cards(desk_dir):
-            try:
-                lines = doctor(c, repos)
-            except Exception as e:  # one broken card must not end the sweep; state.json errors are caught inside doctor
-                lines = [f"could not check this card ({type(e).__name__}: {e}). Fix: report it as a doctor bug"]
-            found += [(os.path.relpath(os.path.abspath(c), desk_dir), x) for x in lines]
+        found = sweep(os.environ.get("BUREAU_DESK") or os.path.join(worktree.BUREAU, "desk"), a[1] if len(a) > 1 else None, repos)
         print("\n".join(f"{c}: {x}" for c, x in found) or "all cards healthy")
         sys.exit(1 if any(not x.startswith("fixed:") for _, x in found) else 0)
     try:

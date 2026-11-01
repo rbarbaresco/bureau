@@ -5,6 +5,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
@@ -222,6 +223,31 @@ class DoctorTest(unittest.TestCase):
         self.assertIn("approvals.json is not an object", line)
         [line] = desk.doctor(os.path.join(self.card, "state.json"), {})  # a file, not the card folder
         self.assertIn("not a card folder", line)
+
+    def test_unreadable_approvals_keeps_the_cards_other_problems(self):
+        os.remove(os.path.join(self.card, "sessions" + ".jsonl"))
+        os.makedirs(os.path.join(self.card, "approvals.json"))  # a folder: IsADirectoryError
+        lines = self.doctor()
+        self.assertTrue(any("approvals.json is not readable" in x for x in lines), lines)
+        self.assertTrue(any("no claim log" in x for x in lines), lines)
+        os.rmdir(os.path.join(self.card, "approvals.json"))
+        with open(os.path.join(self.card, "approvals.json"), "wb") as f:
+            f.write(b"\xff")  # not UTF-8: UnicodeDecodeError
+        self.assertTrue(any("approvals.json is not readable" in x for x in self.doctor()))
+
+    def test_sweep_reports_a_doctor_crash_and_goes_on(self):
+        """The last-resort catch: a bug inside doctor() for one card must not end the sweep."""
+        desk.init(os.path.join(self.tmp, "desk", "XYZ-2"), STEPS)  # no claim log: a real problem after the crash
+        real = desk.doctor
+
+        def flaky(card, repos):
+            if card.endswith("ABC-1"):
+                raise RuntimeError("boom")
+            return real(card, repos)
+        with mock.patch.object(desk, "doctor", flaky):
+            found = desk.sweep(os.path.join(self.tmp, "desk"), None, {})
+        self.assertIn(("ABC-1", "could not check this card (RuntimeError: boom). Fix: report it as a doctor bug"), found)
+        self.assertIn(("XYZ-2", "no claim log. Fix: /work XYZ-2"), found)
 
     def test_plain_file_under_worktrees_is_ignored(self):
         open(os.path.join(self.card, "worktrees", ".DS_Store"), "w").close()
