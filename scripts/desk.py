@@ -140,7 +140,7 @@ def _where(cid, state):
 
 
 def _questions(card_dir, step_id):
-    """Short labels of the artifact's `## Open questions`: the text before the first ':' of each item, else the whole item."""
+    """Short labels of the artifact's `## Open questions`: each item's `Label:` prefix, else the whole item."""
     try:
         with open(os.path.join(card_dir, step_id + ".md")) as f:
             text = f.read()
@@ -148,10 +148,18 @@ def _questions(card_dir, step_id):
         return []
     m = re.search(r"^## Open questions[ \t]*\n(.*?)(?=^## |\Z)", text, re.S | re.M | re.I)
     body = m.group(1).strip() if m else ""
-    if re.fullmatch(r"none\.?", body, re.I):
+    if re.match(r"[-*\s]*\**(none|n/a)\b", body, re.I) and "?" not in body.split("\n")[0]:
         return []
     items = re.split(r"^(?:[-*]|\d+[.)])\s+", body, flags=re.M)
-    return [i.split(":")[0].strip(" *\n") if ":" in i else " ".join(i.split()) for i in items if i.strip()]
+    if len(items) > 1:
+        items = items[1:]  # text before the first marker is a lead-in, not a question
+    return [_label(" ".join(i.split())) for i in items if i.strip()]
+
+
+def _label(item):
+    """The short form of one question: its `Label:` prefix when it has a short one without a '?', else the whole item."""
+    m = re.match(r"([^:?]{1,40}):\s", item)
+    return m.group(1).strip("* ") if m else item
 
 
 def _starts(state, step_id):

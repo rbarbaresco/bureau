@@ -125,11 +125,25 @@ class TransitionTest(unittest.TestCase):
         self.assertNotIn("100 characters", out)
 
     def test_next_block_says_none_when_there_are_no_open_questions(self):
-        for text in ("## Open questions\nnone\n", "## Open questions\nNone.\n", "no section at all\n", None):
-            if text is not None:
-                self.write_plan(text)
-            self.assertIn("Questions: none\n", desk.next_block(self.card, desk.finish(self.card)))
-            desk.revise(self.card, "again")
+        for text in ("## Open questions\nnone\n", "## Open questions\nNone.\n", "no section at all\n", None,
+                     "## Open questions\n- none\n", "## Open questions\nnone (both settled by feedback)\n",
+                     "## Open questions\n**None**\n", "## Open questions\nn/a\n"):
+            with self.subTest(text=text):
+                if text is not None:
+                    self.write_plan(text)
+                self.assertIn("Questions: none\n", desk.next_block(self.card, desk.finish(self.card)))
+                desk.revise(self.card, "again")
+
+    def test_questions_edge_shapes(self):
+        for text, want in (("1. Do X or Y? Default: X\n", ["Do X or Y? Default: X"]),
+                           ("1. Use http://x? Default: yes\n", ["Use http://x? Default: yes"]),
+                           ("Two things:\n1. A: x\n2. B: y\n", ["A", "B"]),
+                           ("1. Long\n   label: text\n", ["Long label"]),
+                           ("- None of these fit: pick one?\n", ["None of these fit"]),
+                           ("A plain paragraph question? Default: no\n", ["A plain paragraph question? Default: no"])):
+            with self.subTest(text=text):
+                self.write_plan("## Open questions\n" + text)
+                self.assertEqual(desk._questions(self.card, "plan"), want)
 
     def test_next_block_reply_step_says_it_posts(self):
         card = os.path.join(tempfile.mkdtemp(), "PRR-1")
