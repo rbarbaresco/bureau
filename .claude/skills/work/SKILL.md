@@ -73,9 +73,10 @@ Resume: if `awaiting` is set and `approvals.json` has it, run `desk.py advance` 
 
 Every `/work` and `/approve` reply ends with a **Next** block, just before the location block. Once a run has started, paste
 the last block `desk.py finish` or `desk.py advance` printed, or run `desk.py next desk/<card-id>` (read-only) when this reply ran
-neither (resume, a failed `/approve`): its `State` line names the card, workflow and step, and at a gate
-its `After` line says what `/approve` starts. Otherwise write it in the same shape from this table; `Needed` quotes
-the artifact's `## Open questions` when there are any. A failed or blocked state names the exact command, or asks for the missing input.
+neither (resume, a failed `/approve`). At a gate it has one row each: `Card`, `Done`, `Review` (the artifact), `Questions`
+(the short labels of its `## Open questions`, or `none`), `Approve` (what `/approve` starts), `Feedback` and `Go back`.
+Otherwise write it in the same shape from this table, rows `Card`, `Run`, `Needed`; `Needed` lists the artifact's open-question
+labels when there are any. A failed or blocked state names the exact command, or asks for the missing input.
 
 | State | Run | Needed |
 |---|---|---|

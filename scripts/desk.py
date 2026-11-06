@@ -126,11 +126,30 @@ SIDE_EFFECTS = {"pr": "pushes the branch and opens a draft PR, then ",
                 "reply": "pushes the branch and posts reply.json, then "}  # what approve.py runs before advancing
 
 
+def _row(label, text):
+    return f"  {label:<11}{text}\n"
+
+
 def _where(cid, state):
-    """One line naming the card, its workflow and its position, readable without the conversation."""
-    ids, cur, aw = _ids(state), state["current"], state.get("awaiting")
-    pos = f"done ({len(ids)} steps)" if cur == "done" else f"step {ids.index(cur) + 1} of {len(ids)} ({cur})"
-    return f"  State:   {cid} · {state.get('workflow') or '?'} · {pos}{', awaiting /approve' if aw else ''}\n"
+    """The Card row: card, workflow and position, readable without the conversation."""
+    ids, cur = _ids(state), state["current"]
+    pos = f"done ({len(ids)} steps)" if cur == "done" else f"step {ids.index(cur) + 1} of {len(ids)}"
+    return _row("Card:", f"{cid} · {state.get('workflow') or '?'} · {pos}")
+
+
+def _questions(card_dir, step_id):
+    """Short labels of the artifact's `## Open questions`: the text before the first ':' of each item, else the whole item."""
+    try:
+        with open(os.path.join(card_dir, step_id + ".md")) as f:
+            text = f.read()
+    except OSError:
+        return []
+    m = re.search(r"^## Open questions[ \t]*\n(.*?)(?=^## |\Z)", text, re.S | re.M | re.I)
+    body = m.group(1).strip() if m else ""
+    if re.fullmatch(r"none\.?", body, re.I):
+        return []
+    items = re.split(r"^(?:[-*]|\d+[.)])\s+", body, flags=re.M)
+    return [i.split(":")[0].strip(" *\n") if ":" in i else " ".join(i.split()) for i in items if i.strip()]
 
 
 def _starts(state, step_id):
@@ -150,19 +169,20 @@ def next_block(card_dir, state):
     if aw:
         loop = state["steps"][_ids(state).index(aw)].get("loop")
         after = SIDE_EFFECTS.get(aw, "") + _starts(state, aw)
-        done = (f"  Or:      /approve {cid} done -> approves this round and ends the loop; {after}\n" if loop else "")
-        return (f"Next\n{where}  Run:     /approve {cid}{'   -> approves this round, then the next round' if loop else ''}\n"
-                f"  After:   /approve -> {f'another round of {aw}' if loop else after}\n"
-                f"{done}"
-                f"  Or:      reply with feedback           -> redoes {aw}\n"
-                f"           \"go back to <step>\"           -> reopens an earlier step\n"
-                f"  Needed:  1. Read {os.path.join(card_dir, aw + '.md')}\n"
-                f"           2. Answer the open questions in it")
+        qs = _questions(card_dir, aw)
+        return ("Next\n" + where + _row("Done:", f"{aw} written")
+                + _row("Review:", os.path.join(card_dir, aw + ".md"))
+                + "".join(_row("Questions:" if i == 0 else "", f"- {q}") for i, q in enumerate(qs))
+                + ("" if qs else _row("Questions:", "none"))
+                + _row("Approve:", f"/approve {cid} -> " + (f"another round of {aw}" if loop else after))
+                + (_row("Finish:", f"/approve {cid} done -> ends the loop; {after}") if loop else "")
+                + _row("Feedback:", f"reply -> redoes {aw}")
+                + _row("Go back:", '"go back to <step>" -> reopens an earlier step')).rstrip("\n")
     if cur == "done":
         ids = _ids(state)
         needed = "merge the draft PR (yours)" if "pr" in ids else "nothing; the PR's author merges" if "reply" in ids else "nothing"
-        return f"Next\n{where}  Run:     none\n  Needed:  {needed}"
-    return f"Next\n{where}  Run:     none (continuing with {cur})"
+        return f"Next\n{where}{_row('Run:', 'none')}{_row('Needed:', needed)}".rstrip("\n")
+    return f"Next\n{where}{_row('Run:', f'none (continuing with {cur})')}".rstrip("\n")
 
 
 def advance(card_dir):

@@ -14,7 +14,7 @@ gate: approve
 
 Write plan.md: approach, files and callers affected, test strategy, risks, and what is deliberately out of scope.
 Stop here; the human approves before any code.
-End the artifact with `## Open questions` (or "none").
+End the artifact with `## Open questions`: one numbered item per question, written `Short label: full question, with options and a default if there is a choice (Default: X)`. The label is what the Next block shows. Put statements and assumptions elsewhere in the artifact. Write "none" if there are no questions.
 
 ## build
 persona: staff-engineer
@@ -23,7 +23,7 @@ writes_code: true
 
 Load the repo rules, create the worktree, then implement test first. Write build.md: what changed, test output, deviations from plan.md and why.
 Commit all work before finishing: the `pr` step cannot commit.
-End the artifact with `## Open questions` (or "none").
+End the artifact with `## Open questions`: one numbered item per question, written `Short label: full question, with options and a default if there is a choice (Default: X)`. The label is what the Next block shows. Put statements and assumptions elsewhere in the artifact. Write "none" if there are no questions.
 
 ## docs
 persona: journalist
@@ -34,7 +34,7 @@ Load the repo rules. Read the code step's artifact and the branch diff (`git dif
 Find every README, doc and instruction file (`AGENTS.md`/`CLAUDE.md`) the change makes wrong or incomplete, and update it in the same branch, in the repo's own style. Commit before finishing: the `pr` step cannot commit.
 If nothing is stale, edit nothing and write `Docs: none needed, <reason>`.
 Write docs.md: each file updated and why, or the none-needed line. No gate: the human sees these commits at the `pr` gate.
-End the artifact with `## Open questions` (or "none").
+End the artifact with `## Open questions`: one numbered item per question, written `Short label: full question, with options and a default if there is a choice (Default: X)`. The label is what the Next block shows. Put statements and assumptions elsewhere in the artifact. Write "none" if there are no questions.
 
 ## review
 persona: qa
