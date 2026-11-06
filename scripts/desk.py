@@ -131,10 +131,12 @@ def _row(label, text):
 
 
 def _where(cid, state):
-    """The Card row: card, workflow and position, readable without the conversation."""
+    """The Card and Steps rows: where the card stands, readable without the conversation. A step is [x] once it is behind `current`."""
     ids, cur = _ids(state), state["current"]
     pos = f"done ({len(ids)} steps)" if cur == "done" else f"step {ids.index(cur) + 1} of {len(ids)}"
-    return _row("Card:", f"{cid} · {state.get('workflow') or '?'} · {pos}")
+    done = len(ids) if cur == "done" else ids.index(cur)
+    boxes = " -> ".join(f"[{'x' if i < done else ' '}] {sid}" for i, sid in enumerate(ids))
+    return _row("Card:", f"{cid} · {state.get('workflow') or '?'} · {pos}") + _row("Steps:", boxes)
 
 
 def _questions(card_dir, step_id):
@@ -170,7 +172,7 @@ def next_block(card_dir, state):
         loop = state["steps"][_ids(state).index(aw)].get("loop")
         after = SIDE_EFFECTS.get(aw, "") + _starts(state, aw)
         qs = _questions(card_dir, aw)
-        return ("Next\n" + where + _row("Done:", f"{aw} written")
+        return ("Next\n" + where
                 + _row("Review:", os.path.join(card_dir, aw + ".md"))
                 + "".join(_row("Questions:" if i == 0 else "", f"- {q}") for i, q in enumerate(qs))
                 + ("" if qs else _row("Questions:", "none"))

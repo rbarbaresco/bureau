@@ -41,7 +41,7 @@ class TransitionTest(unittest.TestCase):
         self.assertIn("Approve:   /approve ABC-1", out)
         self.assertIn(f"Review:    {self.card}/plan.md", out)
         self.assertIn("redoes plan", out)
-        self.assertIn("Done:      plan written", out)
+        self.assertIn("Steps:     [ ] plan -> [ ] build -> [ ] review", out)
         self.assertNotIn("Answer the open questions", out)
 
     def test_next_block_ungated_continues_then_done(self):
@@ -85,7 +85,7 @@ class TransitionTest(unittest.TestCase):
         for _ in range(2):
             desk.advance(card)
             out = desk.next_block(card, desk.finish(card))
-        self.assertIn("Done:      pr written", out)
+        self.assertIn("Steps:     [x] plan -> [x] build -> [ ] pr", out)
         self.assertIn("pushes the branch and opens a draft PR, then the run ends", out)
 
     def test_next_block_running_and_done_carry_the_state_line(self):
@@ -96,6 +96,7 @@ class TransitionTest(unittest.TestCase):
         s = desk.load(self.card)
         s["current"] = "done"
         self.assertIn("Card:      ABC-1 · ? · done (3 steps)", desk.next_block(self.card, s))
+        self.assertIn("Steps:     [x] plan -> [x] build -> [x] review", desk.next_block(self.card, s))
 
     def test_next_block_loop_says_another_round_and_what_done_starts(self):
         card = self.loop_card()
