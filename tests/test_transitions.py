@@ -38,9 +38,11 @@ class TransitionTest(unittest.TestCase):
 
     def test_next_block_gated_names_command_card_and_artifact(self):
         out = desk.next_block(self.card, desk.finish(self.card))
-        self.assertIn("Run:     /approve ABC-1", out)
-        self.assertIn(f"Read {self.card}/plan.md", out)
+        self.assertIn("Approve:   /approve ABC-1", out)
+        self.assertIn(f"Review:    {self.card}/plan.md", out)
         self.assertIn("redoes plan", out)
+        self.assertIn("Steps:     [ ] plan -> [ ] build -> [ ] review", out)
+        self.assertNotIn("Answer the open questions", out)
 
     def test_next_block_ungated_continues_then_done(self):
         self.approve("plan", "build")
@@ -48,15 +50,15 @@ class TransitionTest(unittest.TestCase):
             desk.finish(self.card)
             desk.advance(self.card)
         out = desk.next_block(self.card, desk.finish(self.card))
-        self.assertIn("Run:     none", out)
-        self.assertIn("Needed:  nothing", out)  # STEPS has no pr step, so no PR to merge
+        self.assertIn("Run:       none", out)
+        self.assertIn("Needed:    nothing", out)  # STEPS has no pr step, so no PR to merge
         self.assertNotIn("/approve", out)
 
     def test_next_block_names_each_cards_own_id_when_two_await(self):
         other = os.path.join(os.path.dirname(self.card), "ABC-2")
         desk.init(other, STEPS)
         for card in (self.card, other):
-            self.assertIn(f"/approve {os.path.basename(card)}\n", desk.next_block(card, desk.finish(card)))
+            self.assertIn(f"/approve {os.path.basename(card)} ->", desk.next_block(card, desk.finish(card)))
 
     def test_next_block_ungated_mid_run_names_next_step(self):
         s = desk.load(self.card)
@@ -68,7 +70,7 @@ class TransitionTest(unittest.TestCase):
     def test_cli_finish_prints_next_block(self):
         out = subprocess.run([sys.executable, os.path.join(os.path.dirname(desk.__file__), "desk.py"), "finish", self.card],
                              capture_output=True, text=True, check=True).stdout
-        self.assertIn("Run:     /approve ABC-1", out)
+        self.assertIn("Approve:   /approve ABC-1", out)
 
     def test_next_block_gated_says_where_the_card_stands_and_what_approve_starts(self):
         card = os.path.join(tempfile.mkdtemp(), "ABC-9")
@@ -76,29 +78,30 @@ class TransitionTest(unittest.TestCase):
                          {"id": "build", "gate": "approve", "persona": "staff-engineer"},
                          {"id": "pr", "gate": "approve"}], "task")
         out = desk.next_block(card, desk.finish(card))
-        self.assertIn("State:   ABC-9 · task · step 1 of 3 (plan), awaiting /approve", out)
-        self.assertIn("After:   /approve -> build starts (staff-engineer, gate approve)", out)
+        self.assertIn("Card:      ABC-9 · task · step 1 of 3", out)
+        self.assertIn("/approve ABC-9 -> build starts (staff-engineer, gate approve)", out)
         with open(os.path.join(card, "approvals.json"), "w") as f:
             json.dump({"plan": True, "build": True}, f)
         for _ in range(2):
             desk.advance(card)
             out = desk.next_block(card, desk.finish(card))
-        self.assertIn("step 3 of 3 (pr)", out)
+        self.assertIn("Steps:     [x] plan -> [x] build -> [ ] pr", out)
         self.assertIn("pushes the branch and opens a draft PR, then the run ends", out)
 
     def test_next_block_running_and_done_carry_the_state_line(self):
         s = desk.load(self.card)
         s["steps"][0]["gate"] = "none"
         desk.save(self.card, s)
-        self.assertIn("State:   ABC-1 · ? · step 2 of 3 (build)", desk.next_block(self.card, desk.finish(self.card)))
+        self.assertIn("Card:      ABC-1 · ? · step 2 of 3", desk.next_block(self.card, desk.finish(self.card)))
         s = desk.load(self.card)
         s["current"] = "done"
-        self.assertIn("State:   ABC-1 · ? · done (3 steps)", desk.next_block(self.card, s))
+        self.assertIn("Card:      ABC-1 · ? · done (3 steps)", desk.next_block(self.card, s))
+        self.assertIn("Steps:     [x] plan -> [x] build -> [x] review", desk.next_block(self.card, s))
 
     def test_next_block_loop_says_another_round_and_what_done_starts(self):
         card = self.loop_card()
         out = desk.next_block(card, desk.finish(card))
-        self.assertIn("After:   /approve -> another round of rounds", out)
+        self.assertIn("-> another round of rounds", out)
         self.assertIn("ends the loop; review starts (-, gate none)", out)
 
     def test_cli_advance_prints_next_block(self):
@@ -106,7 +109,49 @@ class TransitionTest(unittest.TestCase):
         self.approve("plan")
         out = subprocess.run([sys.executable, os.path.join(os.path.dirname(desk.__file__), "desk.py"), "advance", self.card],
                              capture_output=True, text=True, check=True).stdout
-        self.assertIn("State:   ABC-1 · ? · step 2 of 3 (build)", out)
+        self.assertIn("Card:      ABC-1 · ? · step 2 of 3", out)
+
+    def write_plan(self, text):
+        with open(os.path.join(self.card, "plan.md"), "w") as f:
+            f.write(text)
+
+    def test_next_block_lists_each_open_question_by_its_short_label(self):
+        self.write_plan("# P\n\n## Open questions\n1. Cap: Cut at 100 characters or first line? Default: 100\n"
+                        "   wrapped on a second line\n2. Merge: Keep Run and After apart?\n3. no label here\n")
+        out = desk.next_block(self.card, desk.finish(self.card))
+        self.assertIn("Questions: - Cap", out)
+        self.assertIn("- Merge\n", out)
+        self.assertIn("- no label here\n", out)
+        self.assertNotIn("100 characters", out)
+
+    def test_next_block_says_none_when_there_are_no_open_questions(self):
+        for text in ("## Open questions\nnone\n", "## Open questions\nNone.\n", "no section at all\n", None,
+                     "## Open questions\n- none\n", "## Open questions\nnone (both settled by feedback)\n",
+                     "## Open questions\n**None**\n", "## Open questions\n1. none\n", "## Open questions\n2) None.\n", "## Open questions\nn/a\n"):
+            with self.subTest(text=text):
+                if text is not None:
+                    self.write_plan(text)
+                self.assertIn("Questions: none\n", desk.next_block(self.card, desk.finish(self.card)))
+                desk.revise(self.card, "again")
+
+    def test_questions_edge_shapes(self):
+        for text, want in (("1. Do X or Y? Default: X\n", ["Do X or Y? Default: X"]),
+                           ("1. Use http://x? Default: yes\n", ["Use http://x? Default: yes"]),
+                           ("Two things:\n1. A: x\n2. B: y\n", ["A", "B"]),
+                           ("1. Long\n   label: text\n", ["Long label"]),
+                           ("- None of these fit: pick one?\n", ["None of these fit"]),
+                           ("- **Scope:** Only desk.py? Default: yes\n", ["Scope"]),
+                           ("- Scope:text here\n", ["Scope:text here"]),
+                           ("- Scope:\n", ["Scope"]),
+                           ("- None of the helpers cover X; add one.\n", ["None of the helpers cover X; add one."]),
+                           ("Should we do X?\n- details\n", ["Should we do X?", "details"]),
+                           ("None (or should we split X?)\n", ["None (or should we split X?)"]),
+                           ("None: which of A or B?\n", ["None"]),
+                           ("None \u2014 which one do we pick?\n", ["None \u2014 which one do we pick?"]),
+                           ("A plain paragraph question? Default: no\n", ["A plain paragraph question? Default: no"])):
+            with self.subTest(text=text):
+                self.write_plan("## Open questions\n" + text)
+                self.assertEqual(desk._questions(self.card, "plan"), want)
 
     def test_next_block_reply_step_says_it_posts(self):
         card = os.path.join(tempfile.mkdtemp(), "PRR-1")
@@ -119,21 +164,21 @@ class TransitionTest(unittest.TestCase):
                               ([{"id": "plan", "gate": "none"}], "nothing")):
             card = os.path.join(tempfile.mkdtemp(), "D-1")
             desk.init(card, steps)
-            self.assertIn(f"Needed:  {needed}", desk.next_block(card, desk.finish(card)))
+            self.assertIn(f"Needed:    {needed}", desk.next_block(card, desk.finish(card)))
 
     def test_cli_next_prints_the_block_from_saved_state_without_changing_it(self):
         desk.finish(self.card)
         before = desk.load(self.card)
         out = subprocess.run([sys.executable, os.path.join(os.path.dirname(desk.__file__), "desk.py"), "next", self.card],
                              capture_output=True, text=True, check=True).stdout
-        self.assertIn("State:   ABC-1 · ? · step 1 of 3 (plan), awaiting /approve", out)
+        self.assertIn("Card:      ABC-1 · ? · step 1 of 3", out)
         self.assertEqual(desk.load(self.card), before)
 
     def test_advance_on_a_loop_round_and_into_done_print_state(self):
         card = self.loop_card()
         desk.finish(card)
         self.approve_loop(card, True)
-        self.assertIn("step 1 of 2 (rounds)", desk.next_block(card, desk.advance(card)))
+        self.assertIn("step 1 of 2", desk.next_block(card, desk.advance(card)))
         desk.finish(card)
         self.approve_loop(card, "done")
         desk.advance(card)

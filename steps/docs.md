@@ -11,4 +11,4 @@ Load the repo rules. Read the code step's artifact and the branch diff (`git dif
 Find every README, doc and instruction file (`AGENTS.md`/`CLAUDE.md`) the change makes wrong or incomplete, and update it in the same branch, in the repo's own style. Commit before finishing; do not push (`pr` or `reply` pushes, and cannot commit).
 If nothing is stale, edit nothing and write `Docs: none needed, <reason>`.
 Write docs.md: each file updated and why, or the none-needed line. No gate: the human sees these commits at the next gate (`pr`, or `reply`, which must list them).
-End the artifact with `## Open questions` (or "none").
+End the artifact with `## Open questions`: one numbered item per question, written `Short label: full question, with options and a default if there is a choice (Default: X)`. The label is what the Next block shows. Put statements and assumptions elsewhere in the artifact. Write "none" if there are no questions.
