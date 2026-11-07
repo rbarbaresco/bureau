@@ -127,7 +127,7 @@ class TransitionTest(unittest.TestCase):
     def test_next_block_says_none_when_there_are_no_open_questions(self):
         for text in ("## Open questions\nnone\n", "## Open questions\nNone.\n", "no section at all\n", None,
                      "## Open questions\n- none\n", "## Open questions\nnone (both settled by feedback)\n",
-                     "## Open questions\n**None**\n", "## Open questions\nn/a\n"):
+                     "## Open questions\n**None**\n", "## Open questions\n1. none\n", "## Open questions\n2) None.\n", "## Open questions\nn/a\n"):
             with self.subTest(text=text):
                 if text is not None:
                     self.write_plan(text)
@@ -140,6 +140,11 @@ class TransitionTest(unittest.TestCase):
                            ("Two things:\n1. A: x\n2. B: y\n", ["A", "B"]),
                            ("1. Long\n   label: text\n", ["Long label"]),
                            ("- None of these fit: pick one?\n", ["None of these fit"]),
+                           ("- **Scope:** Only desk.py? Default: yes\n", ["Scope"]),
+                           ("- Scope:text here\n", ["Scope:text here"]),
+                           ("- Scope:\n", ["Scope"]),
+                           ("- None of the helpers cover X; add one.\n", ["None of the helpers cover X; add one."]),
+                           ("Should we do X?\n- details\n", ["Should we do X?", "details"]),
                            ("A plain paragraph question? Default: no\n", ["A plain paragraph question? Default: no"])):
             with self.subTest(text=text):
                 self.write_plan("## Open questions\n" + text)

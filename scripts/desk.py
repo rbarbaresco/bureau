@@ -148,17 +148,17 @@ def _questions(card_dir, step_id):
         return []
     m = re.search(r"^## Open questions[ \t]*\n(.*?)(?=^## |\Z)", text, re.S | re.M | re.I)
     body = m.group(1).strip() if m else ""
-    if re.match(r"[-*\s]*\**(none|n/a)\b", body, re.I) and "?" not in body.split("\n")[0]:
+    if re.match(r"\s*(?:[-*]|\d+[.)])?[ \t]*\**(?:none|n/a)\**[ \t]*(?:$|[.(:—-])", body, re.I | re.M):
         return []
     items = re.split(r"^(?:[-*]|\d+[.)])\s+", body, flags=re.M)
-    if len(items) > 1:
-        items = items[1:]  # text before the first marker is a lead-in, not a question
+    if items[0].strip().endswith(":"):
+        items = items[1:]  # a lead-in such as "Two things:" is not a question
     return [_label(" ".join(i.split())) for i in items if i.strip()]
 
 
 def _label(item):
-    """The short form of one question: its `Label:` prefix when it has a short one without a '?', else the whole item."""
-    m = re.match(r"([^:?]{1,40}):\s", item)
+    """The short form of one question: its `Label:` (or `**Label:**`) prefix when it has a short one without a '?', else the whole item."""
+    m = re.match(r"([^:?]{1,40}):\**(?:\s|$)", item)
     return m.group(1).strip("* ") if m else item
 
 
