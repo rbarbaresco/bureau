@@ -35,6 +35,15 @@ class TrialTest(unittest.TestCase):
         for name in ("desk", "repos.yaml"):
             self.assertEqual(os.path.realpath(os.path.join(dest, name)), os.path.realpath(os.path.join(self.main, name)))
 
+    def test_trial_made_from_a_trial_links_to_the_real_desk(self):
+        first = trial.add("bureau/x", self.main)
+        second = trial.add("main", first)
+        self.assertEqual(os.readlink(os.path.join(second, "desk")), os.path.realpath(os.path.join(self.main, "desk")))
+
+    def test_ref_that_looks_like_an_option_is_refused(self):
+        with self.assertRaises(SystemExit):
+            trial.add("--upload-pack=x", self.main)
+
     def test_existing_destination_is_refused(self):
         os.makedirs(os.path.join(self.tmp, "bureau-trial-main"))
         with self.assertRaises(SystemExit):

@@ -291,7 +291,7 @@ python3 scripts/trial.py 91   # a PR number; or a branch (bureau/bureau-88) or a
 cd ../bureau-trial-91 && claude      # the hooks and skills come from that branch
 ```
 
-The copy links its `desk/` and `repos.yaml` to the real ones, so cards, config and claims are shared with the main checkout. `git status` there shows `desk/.gitkeep` as deleted; that is the link. Remove it with `git worktree remove ../bureau-trial-91`. Run the script from a checkout that has it (`main` once this is merged), not from a card's worktree.
+The copy links its `desk/` and `repos.yaml` to the real ones, so cards, config and claims are shared with the main checkout. `git status` there shows `desk/.gitkeep` as deleted and `desk` as untracked; that is the link, so do not `git add -A` there. Remove it with `git worktree remove ../bureau-trial-91`. Run the script from a checkout that has it (`main` once this is merged), not from a card's worktree.
 
 ### Keep local files out of the public repo
 

@@ -16,9 +16,11 @@ BUREAU = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def add(ref, bureau=BUREAU, dest=None):
-    real = os.path.realpath(bureau)  # run from a trial: link to the real desk, not to a link
+    real = os.path.realpath(bureau)
     git = lambda *a, **k: subprocess.run(["git", "-C", real, *a], capture_output=True, text=True, **k)
     dest = os.path.abspath(dest or os.path.join(real, "..", "bureau-trial-" + re.sub(r"[^\w.-]+", "-", ref)))
+    if ref.startswith("-"):  # would reach git as an option
+        sys.exit(f"unknown ref '{ref}'")
     if os.path.exists(dest):
         sys.exit(f"{dest} already exists; remove it with: git worktree remove {dest}")
     if ref.isdigit():  # a PR: its head is not a branch we have
@@ -38,7 +40,8 @@ def add(ref, bureau=BUREAU, dest=None):
         sys.exit(r.stderr.strip())
     shutil.rmtree(os.path.join(dest, "desk"), ignore_errors=True)  # the branch tracks only desk/.gitkeep
     for name in ("desk", "repos.yaml"):
-        os.symlink(os.path.join(real, name), os.path.join(dest, name))
+        os.symlink(os.path.realpath(os.path.join(real, name)),  # from a trial: the real file, not its link
+                   os.path.join(dest, name))
     return dest
 
 
