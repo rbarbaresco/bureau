@@ -8,6 +8,7 @@ Remove it with: git worktree remove <dir>
 """
 import os
 import re
+import shutil
 import subprocess
 import sys
 
@@ -35,6 +36,7 @@ def add(ref, bureau=BUREAU, dest=None):
     r = git("worktree", "add", "--detach", dest, sha.stdout.strip())
     if r.returncode:
         sys.exit(r.stderr.strip())
+    shutil.rmtree(os.path.join(dest, "desk"), ignore_errors=True)  # the branch tracks only desk/.gitkeep
     for name in ("desk", "repos.yaml"):
         os.symlink(os.path.join(real, name), os.path.join(dest, name))
     return dest

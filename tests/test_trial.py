@@ -19,6 +19,10 @@ class TrialTest(unittest.TestCase):
         subprocess.run(G + ["-C", self.main, "commit", "-q", "--allow-empty", "-m", "init"], check=True)
         subprocess.run(["git", "-C", self.main, "branch", "bureau/x"], check=True)
         os.makedirs(os.path.join(self.main, "desk"))
+        open(os.path.join(self.main, "desk", ".gitkeep"), "w").close()  # tracked, like Bureau's own
+        subprocess.run(["git", "-C", self.main, "add", "-f", "desk/.gitkeep"], check=True)
+        subprocess.run(G + ["-C", self.main, "commit", "-q", "-m", "desk"], check=True)
+        subprocess.run(["git", "-C", self.main, "branch", "-f", "bureau/x"], check=True)
         open(os.path.join(self.main, "repos.yaml"), "w").close()
 
     def test_branch_checked_out_elsewhere_gets_a_detached_checkout_on_the_real_desk(self):
