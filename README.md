@@ -287,11 +287,11 @@ Say it in plain words: skip a step, add one after another, change a gate. Bureau
 A branch that is open in a card's worktree cannot be checked out again in the main checkout (git allows one checkout per branch). To run real tickets on it, make a detached copy (a checkout on a commit, not a branch) from the main checkout:
 
 ```sh
-python3 scripts/trial.py bureau/bureau-88   # a branch; or a PR number (91) or a commit
-cd ../bureau-trial-bureau-88 && claude      # the hooks and skills come from that branch
+python3 scripts/trial.py 91   # a PR number; or a branch (bureau/bureau-88) or a commit
+cd ../bureau-trial-91 && claude      # the hooks and skills come from that branch
 ```
 
-The copy links its `desk/` and `repos.yaml` to the real ones, so cards, config and claims are shared with the main checkout. `git status` there shows `desk/.gitkeep` as deleted; that is the link. Remove it with `git worktree remove ../bureau-trial-bureau-88`. Run the script from a checkout that has it (`main` once this is merged), not from a card's worktree.
+The copy links its `desk/` and `repos.yaml` to the real ones, so cards, config and claims are shared with the main checkout. `git status` there shows `desk/.gitkeep` as deleted; that is the link. Remove it with `git worktree remove ../bureau-trial-91`. Run the script from a checkout that has it (`main` once this is merged), not from a card's worktree.
 
 ### Keep local files out of the public repo
 
