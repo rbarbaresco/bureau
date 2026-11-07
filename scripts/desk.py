@@ -171,7 +171,18 @@ def _starts(state, step_id):
 
 
 def next_block(card_dir, state):
-    """The human-facing Next block for the state `finish` or `advance` just left."""
+    """The human-facing Next block for the state `finish` or `advance` just left; a parent card adds its children."""
+    block = _block(card_dir, state)
+    if os.path.exists(os.path.join(card_dir, "tasks.md")):
+        import project  # lazy: project imports desk
+        try:
+            block += "\n  Children:\n" + project.table(card_dir)
+        except (ValueError, OSError) as e:
+            block += f"\n  Children:  unreadable ({e})"
+    return block
+
+
+def _block(card_dir, state):
     aw, cur = state.get("awaiting"), state["current"]
     # the folder is the id everywhere (/approve, branches); state["card"] goes stale if it is renamed
     cid = os.path.basename(os.path.abspath(card_dir))
@@ -305,7 +316,7 @@ def doctor(card_dir, repos):
     except (OSError, ValueError, KeyError, TypeError, AttributeError) as e:
         return [f"state.json unreadable ({type(e).__name__}: {e}). Fix: restore it, or archive the card"]
     out = []
-    if not os.path.exists(os.path.join(card_dir, "sessions.jsonl")):
+    if not s.get("parent") and not os.path.exists(os.path.join(card_dir, "sessions.jsonl")):  # a child runs under its parent's session
         out.append(f"no claim log. Fix: /work {name}")
     if s.get("card") != name:
         out.append(f"state.json names card '{s.get('card')}', so the folder was renamed (the claim log and worktrees "

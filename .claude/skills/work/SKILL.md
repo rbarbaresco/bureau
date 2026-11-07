@@ -54,6 +54,8 @@ For the current step in `state.json`:
 1. Read the step's section in `desk/<card-id>/workflow.md` and its persona in `personas/<persona>.md` (or `desk/<card-id>/personas/`).
 2. Do the work as that persona. `read-only` personas run as a read-only subagent (their prompt has the persona, `card.md`,
    the prior artifacts, and the repo rules output). `writer` personas work in this session.
+   A `project` card (parent): its `run` step spawns child cards and runs each ready child's current step as a background subagent
+   (one per child step), as this loop does for a normal card; a child's gate is approved by the human with `/approve <child-id>`.
 3. A step that writes code: create the worktree with `python3 scripts/worktree.py desk/<card-id> <repo>` (repo is a name in
    `repos.yaml`), then load the rules with `python3 hooks/rules.py desk/<card-id>/worktrees/<repo>` and follow them. Edits are
    denied by a hook until both that and the earlier approvals are in place; if denied, do what the message says, never route around it.

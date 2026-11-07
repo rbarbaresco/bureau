@@ -140,6 +140,36 @@ class ArchiveTest(unittest.TestCase):
         listing = subprocess.run(["git", "-C", self.clone, "worktree", "list"], capture_output=True, text=True).stdout
         self.assertEqual(len(listing.strip().splitlines()), 1)
 
+    def child(self, parent, cid, current="done"):
+        d = os.path.join(parent, cid)
+        os.makedirs(d)
+        with open(os.path.join(d, "state.json"), "w") as f:
+            json.dump({"current": current, "parent": os.path.basename(parent)}, f)
+        wt = os.path.join(d, "worktrees", "clone")
+        git("-C", self.clone, "worktree", "add", "-q", "-b", "bureau/" + cid, wt, "main")
+        git("-C", wt, "push", "-q", "-u", "origin", "bureau/" + cid)
+        return d
+
+    def test_parent_refused_until_every_child_is_done(self):
+        d = self.card(worktree=False)
+        self.child(d, "A-1-1")
+        self.child(d, "A-1-2", current="build")
+        self.refused(d, "A-1-2")
+
+    def test_parent_archive_removes_the_childrens_worktrees(self):
+        d = self.card(worktree=False)
+        self.child(d, "A-1-1")
+        dest = self.run_archive(d)
+        self.assertTrue(os.path.exists(os.path.join(dest, "A-1-1", "state.json")))
+        listing = subprocess.run(["git", "-C", self.clone, "worktree", "list"], capture_output=True, text=True).stdout
+        self.assertEqual(len(listing.strip().splitlines()), 1)
+
+    def test_parent_refused_when_a_child_is_unpushed(self):
+        d = self.card(worktree=False)
+        c = self.child(d, "A-1-1")
+        open(os.path.join(c, "worktrees", "clone", "f"), "w").close()
+        self.refused(d, "A-1-1")
+
     def claimed(self, me):
         """A card claimed by a live process (the test runner's parent); `me` is the pid the script sees as its claude."""
         d = self.card(worktree=False)

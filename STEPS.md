@@ -13,4 +13,5 @@ Each step is done only when its test passes. Update the status as you go.
 | 6 | Personas (architect, staff engineer, QA) and the `consult` skill | persona frontmatter validates; manual: "ask the architect …" saves a note in the card folder | done (consult manually verified with claude-haiku-5-5) |
 | 7 | `work` skill: intake (`gh`, `acli`, paste) into `card.md`, overview, workflow match, start or resume | manual on one real GitHub issue and one pasted story; resume after a new session lands on the right gate | done (intake, confirm, gate stop, refuse-without-approval, approve+resume checked with claude-sonnet-5-5; Jira via acli not exercised) |
 | 8 | Dogfood on one real bugfix card, then adjust | you drove it end to end | rehearsed end to end on a scratch repo (plan, fix, review, PR gate); a real card driven by you is still open |
-| 9 | Later: `project` workflow (discovery, story creation, nested tasks), Sentry intake, Cursor/Codex adapters | n/a | deferred |
+| 9 | `project` workflow: parent card, child cards from `tasks.md` (#83); splitting an unbroken ticket (#87) is later | unit tests (`test_project.py`, nested gate/approve/archive); no live run with subagents yet | built |
+| 10 | Later: Sentry intake, Cursor/Codex adapters | n/a | deferred |

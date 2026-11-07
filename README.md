@@ -145,7 +145,7 @@ Describe a problem or an idea ("write an issue for this") and the `issue` skill 
 
 **Card.** The thing you are working on. Its source of truth is the tracker; Bureau holds a copy in `card.md`.
 
-**Workflow.** A markdown file in `workflows/` listing steps. Four ship with Bureau:
+**Workflow.** A markdown file in `workflows/` listing steps. Five ship with Bureau:
 
 | Workflow | Use when | Steps (gates in bold) |
 |---|---|---|
@@ -153,6 +153,7 @@ Describe a problem or an idea ("write an issue for this") and the `issue` skill 
 | `task` | A well-defined story in one repo | understand → **plan** → **build** → docs → review → **pr** |
 | `small` | A small, low-risk change in one repo with an obvious approach (docs, config, renames) | **understand** → **build** → review → **pr** |
 | `pr-review` | An open same-repo PR with review comments to triage and apply (`/work <repo> pr <n>`) | **triage** → **fix** → docs → review → **reply** |
+| `project` | A source already split into several tasks (sub-issues, a task list): one child card per task | **intake** → **run** (loop) |
 
 In `small`, `understand` replaces the separate plan: your approval there is what allows code to be written.
 
@@ -297,6 +298,12 @@ The copy links its `desk/` and `repos.yaml` to the real ones, so cards, config a
 
 Anything personal (a persona with your company's conventions, a private workflow) can go in `personas/` or `workflows/` under a name you add to `.git/info/exclude`.
 
+### Project cards: a list of tasks run in parallel
+
+When the work already comes split (sub-issues of a GitHub issue, a markdown list), use the `project` workflow. `intake` writes `tasks.md` in the parent card: one row per task with its repo and what blocks it, each blocker marked `stated` (the source says so) or `inferred` (Bureau worked it out). Only the first table is read (notes can follow it), and an edge is `-` exactly when a task has no blockers. You correct the table and approve. `run` then creates one `task` card per row under `desk/<parent>/<parent>-<id>/` (`scripts/project.py spawn`) and starts a background subagent for each child that is ready, one subagent per child step. A child stops at its gates like any card; you approve it from the parent session with `/approve <child-id>` (a bare `/approve` only matches cards the session owns, and children are not claimed). `desk.py next` on the parent lists every child with its step, what it awaits and whether it is ready, waiting or merged.
+
+A child is merged when `gh pr view` says so for the PR link in its `pr.md`; the tracker's blocked-by is only read at intake. Each child branches from the default branch and opens its own draft PR, so a task that needs another task's code waits until that PR is merged. Two tasks that edit the same file should have a blocking edge. Not built: a shared integration branch, a manual "mark merged" command, a Jira source.
+
 ## Files and layout
 
 | Path | What |
@@ -318,6 +325,8 @@ Anything personal (a persona with your company's conventions, a private workflow
 | `scripts/worktree.py` | Creates a card's worktree from `repos.yaml`; `--branch <name>` checks out an existing remote branch (a PR's head) |
 | `scripts/reply.py` | For `pr-review`: pushes the PR branch (no force) and posts the replies in `reply.json`; never resolves threads |
 | `scripts/pr.py` | Pushes the branch, opens the draft PR from `pr.md`, appends the link to it |
+| `scripts/archive.py` | Moves a `done` card to `desk/.archive/` and removes its worktrees; refuses dirty or unpushed ones unless `--force`; a parent card also needs every child done |
+| `scripts/project.py` | For `project`: `spawn` creates the child cards from `tasks.md`, `status` shows ready, waiting or merged |
 | `scripts/trial.py` | Makes a detached checkout of a Bureau branch, PR or commit on your real `desk/` and `repos.yaml` (see [Try a Bureau branch](#try-a-bureau-branch-or-pr-before-it-is-merged)) |
 | `scripts/archive.py` | Moves a `done` card to `desk/.archive/` and removes its worktrees; refuses dirty or unpushed ones unless `--force` |
 | `scripts/ui.py` | Read-only card viewer (see [Viewing cards](#viewing-cards)) |
@@ -359,7 +368,7 @@ A read-only page that lists the cards in `desk/` (and, under Archived, those in 
 
 ### Archiving a card
 
-`desk/` should hold the work in flight. Once a card is `done` (and, if it opened a PR, the PR is merged), type `/archive <card-id>`. `scripts/archive.py` removes the card's worktrees and moves `desk/<card-id>/` to `desk/.archive/<card-id>/`. It refuses a card that is not `done`, one held by a live session, a worktree with uncommitted changes, or a branch that is not fully pushed. For the last two it lists what would be lost and `/archive` asks you whether to go ahead; on your yes it re-runs with `--force`, which discards uncommitted changes (unpushed commits stay on the local branch). The other refusals have no override. The local `bureau/<card-id>` branch stays. Gitignored files in a worktree (a local `.env`) are deleted with it. If a new card reuses an archived id, the viewer shows the desk card and the archived copy is unreachable from the page; keep ids unique. An archived card can no longer have its PR repaired by `scripts/pr.py`, which needs the worktree.
+`desk/` should hold the work in flight. Once a card is `done` (and, if it opened a PR, the PR is merged), type `/archive <card-id>`. `scripts/archive.py` removes the card's worktrees and moves `desk/<card-id>/` to `desk/.archive/<card-id>/`. It refuses a card that is not `done` (for a project card: any child that is not `done`; its worktrees are removed and checked like the parent's), one held by a live session, a worktree with uncommitted changes, or a branch that is not fully pushed. For the last two it lists what would be lost and `/archive` asks you whether to go ahead; on your yes it re-runs with `--force`, which discards uncommitted changes (unpushed commits stay on the local branch). The other refusals have no override. The local `bureau/<card-id>` branch stays. Gitignored files in a worktree (a local `.env`) are deleted with it. If a new card reuses an archived id, the viewer shows the desk card and the archived copy is unreachable from the page; keep ids unique. An archived card can no longer have its PR repaired by `scripts/pr.py`, which needs the worktree.
 
 ## Tests
 
@@ -381,7 +390,7 @@ The most useful thing you can do is use Bureau on a real task and tell us how it
 
 - **Claude Code only.** The files are plain markdown and Python, so Cursor and Codex adapters are possible later; none exist.
 - **Single repo per card in practice.** `repos.yaml` and the desk allow several repos per card, but the shipped workflows assume one.
-- **Not built yet:** a `project` workflow (discovery, creating child stories, nested task runs), Sentry intake without a pasted issue, a trial on a real production card.
+- **Not built yet:** splitting one unbroken ticket into tasks for `project` (#87), Sentry intake without a pasted issue, a trial on a real production card.
 - **Tested with real sessions:** pasted stories, GitHub issues, the full plan → fix → review → PR-draft loop on a scratch repo. Jira intake through `acli` has not been exercised.
 - Early work: expect rough edges, and read `STEPS.md` for what has been verified.
 

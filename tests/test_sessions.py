@@ -176,6 +176,15 @@ class SessionsTest(unittest.TestCase):
         self.assertIn("block", out)
         self.assertIn("Awaiting: ABC-1 (plan), ABC-2 (plan)", json.loads(out)["reason"])  # no guessing the id
 
+    def test_approve_by_id_reaches_a_nested_child(self):
+        kid = os.path.join(self.card, "ABC-1-2")  # a project card's child, unclaimed
+        os.makedirs(kid)
+        with open(os.path.join(kid, "state.json"), "w") as f:
+            json.dump({"awaiting": "plan", "steps": STEPS}, f)
+        self.assertIn("card=ABC-1-2", self.hook("approve.py", {"prompt": "/approve ABC-1-2", "session_id": "s1"}))
+        with open(os.path.join(kid, "approvals.json")) as f:
+            self.assertEqual(json.load(f), {"plan": True})
+
     def test_non_owner_cannot_mutate_card_by_any_syntax(self):
         self.own("s1", self.claude())
         d, c = f"python3 {LINK}/scripts/desk.py", self.card

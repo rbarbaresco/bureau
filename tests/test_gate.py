@@ -66,6 +66,15 @@ class GateTest(unittest.TestCase):
         self.ack()
         self.assertIn("'plan' is not approved", self.edit())
 
+    def test_nested_child_is_gated_on_its_own_card(self):
+        self.approve("plan")  # the parent card's approval must not open the child
+        kid = os.path.join(self.card, "ABC-1-1")
+        wt = os.path.join(kid, "worktrees", "clone")
+        write(os.path.join(wt, ".git"), "gitdir: x\n")
+        write(os.path.join(kid, "state.json"), json.dumps({"current": "build", "steps": STEPS, "parent": "ABC-1"}))
+        out = self.run_gate("Edit", file_path=os.path.join(wt, "app.py"))
+        self.assertIn("'plan' is not approved", out)
+
     def test_denied_without_ack(self):
         self.approve("plan")
         self.assertIn("rules.py", self.edit())

@@ -2,7 +2,7 @@
 """Move a finished card out of desk/ into desk/.archive/ and remove its worktrees.
 
 Usage: archive.py <card-dir> [--force]
-Refuses, moving nothing, unless the card is directly under desk/, `done`, not held by another live
+Refuses, moving nothing, unless the card is directly under desk/, `done` (a parent card: every child card done too, their worktrees removed with it), not held by another live
 session, not already archived, and every worktree is clean with its branch pushed. Local branches are kept.
 A dirty or unpushed worktree is refused with a list of what would be lost; --force archives anyway
 (uncommitted changes are discarded, unpushed commits stay on the local branch). The caller confirms with the human first.
@@ -43,8 +43,20 @@ def archive(card, desk=sessions.DESK, force=False):
     e = sessions.last(card)
     if e and sessions.status(card, None) == "held" and e["pid"] != sessions.my_pid():  # my own claim is not a holder
         sys.exit(f"{cid} is held by live session {e['session']} (pid {e['pid']}); close it first.")
-    root = os.path.join(card, "worktrees")
-    trees = sorted(os.path.join(root, d) for d in os.listdir(root)) if os.path.isdir(root) else []
+    # a parent card (scripts/project.py) holds child cards: all must be done, and their worktrees go too
+    kids = sorted(d for d in os.listdir(card) if d != "worktrees" and os.path.isfile(os.path.join(card, d, "state.json")))
+    open_kids = []
+    for k in kids:
+        try:
+            with open(os.path.join(card, k, "state.json")) as f:
+                if json.load(f).get("current") != "done":
+                    open_kids.append(k)
+        except (OSError, json.JSONDecodeError):
+            open_kids.append(k)
+    if open_kids:
+        sys.exit(f"{cid} has child cards that are not done: {', '.join(open_kids)}; only a finished project can be archived.")
+    roots = [os.path.join(c, "worktrees") for c in [card] + [os.path.join(card, k) for k in kids]]
+    trees = sorted(os.path.join(r, d) for r in roots if os.path.isdir(r) for d in os.listdir(r))
     lost = []
     for wt in trees:
         if os.path.realpath(git(wt, "rev-parse", "--show-toplevel").stdout.strip()) != os.path.realpath(wt):
@@ -61,10 +73,10 @@ def archive(card, desk=sessions.DESK, force=False):
         r = subprocess.run(["git", "-C", os.path.dirname(common), "worktree", "remove", *(["--force"] if force else []), wt], capture_output=True, text=True)
         if r.returncode:
             sys.exit(f"git worktree remove {wt} failed: {r.stderr.strip()}")
-    if trees:
+    for root in roots:
         try:
             os.rmdir(root)
-        except OSError:  # stray files: they move with the card
+        except OSError:  # stray files, or no worktrees dir at all: they move with the card
             pass
     os.makedirs(os.path.dirname(dest), exist_ok=True)
     shutil.move(card, dest)
