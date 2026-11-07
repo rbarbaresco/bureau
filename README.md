@@ -282,6 +282,17 @@ You are an SRE reviewing a change before it ships. Check ...
 
 Say it in plain words: skip a step, add one after another, change a gate. Bureau applies it with `scripts/desk.py add` and `skip`; you can run those yourself too (`python3 scripts/desk.py` prints the usage).
 
+### Try a Bureau branch or PR before it is merged
+
+A branch that is open in a card's worktree cannot be checked out again in the main checkout (git allows one checkout per branch). To run real tickets on it, make a detached copy (a checkout on a commit, not a branch) from the main checkout:
+
+```sh
+python3 scripts/trial.py 91   # a PR number; or a branch (bureau/bureau-88) or a commit
+cd ../bureau-trial-91 && claude      # the hooks and skills come from that branch
+```
+
+The copy links its `desk/` and `repos.yaml` to the real ones, so cards, config and claims are shared with the main checkout. `git status` there shows `desk/.gitkeep` as deleted and `desk` as untracked; that is the link, so do not `git add -A` there. Remove it with `git worktree remove ../bureau-trial-91`. Run the script from a checkout that has it (`main` once this is merged), not from a card's worktree.
+
 ### Keep local files out of the public repo
 
 Anything personal (a persona with your company's conventions, a private workflow) can go in `personas/` or `workflows/` under a name you add to `.git/info/exclude`.
@@ -307,6 +318,7 @@ Anything personal (a persona with your company's conventions, a private workflow
 | `scripts/worktree.py` | Creates a card's worktree from `repos.yaml`; `--branch <name>` checks out an existing remote branch (a PR's head) |
 | `scripts/reply.py` | For `pr-review`: pushes the PR branch (no force) and posts the replies in `reply.json`; never resolves threads |
 | `scripts/pr.py` | Pushes the branch, opens the draft PR from `pr.md`, appends the link to it |
+| `scripts/trial.py` | Makes a detached checkout of a Bureau branch, PR or commit on your real `desk/` and `repos.yaml` (see [Try a Bureau branch](#try-a-bureau-branch-or-pr-before-it-is-merged)) |
 | `scripts/archive.py` | Moves a `done` card to `desk/.archive/` and removes its worktrees; refuses dirty or unpushed ones unless `--force` |
 | `scripts/ui.py` | Read-only card viewer (see [Viewing cards](#viewing-cards)) |
 | `workflows/`, `steps/`, `personas/` | The shipped workflows, the step catalogue and personas, yours to extend |
