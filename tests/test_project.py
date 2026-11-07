@@ -48,6 +48,60 @@ class ProjectTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, msg):
                 project.parse(head + rows)
 
+    def test_parse_reads_only_the_first_table(self):
+        notes = TASKS + "\nWhy 3 is inferred:\n\n| file | tasks |\n|--|--|\n| a.py | 2, 3 |\n"
+        self.assertEqual(len(project.parse(notes)), 3)
+        self.assertEqual(len(project.parse(TASKS + "Note: a | b | c\n")), 3)  # stops at the first non-table line
+
+    def test_parse_errors_say_what_is_wrong(self):
+        head = "| id | title | repo | blocked by | edge |\n|--|--|--|--|--|\n"
+        for text, msg in ((head, "no task rows"),
+                          ("no table here\n", "no table"),
+                          ("| id | title | repo | blocked by | edge |\n| 1 | A | r | - | - |\n", "separator"),
+                          (head + "| 1 | A | r | - | - |\n| 2 | B | r |  | stated |\n", "blocked by is empty"),
+                          (head + "| 1 | A | r | - | - |\n| 2 | B | r | 1 | - |\n", "edge"),
+                          (head + "| 1 | A | r | - | stated |\n", "edge"),
+                          (head + "| a b | A | r | - | - |\n", "bad id"),
+                          (head + "| 1 | A | r | - |\n", "5 columns")):
+            with self.assertRaisesRegex(ValueError, msg, msg=text):
+                project.parse(text)
+
+    def test_is_merged(self):
+        kid = os.path.join(self.tmp, "kid")
+        os.makedirs(kid)
+        fake = lambda out, code=0: lambda *a, **k: type("R", (), {"returncode": code, "stdout": out})()
+        self.assertFalse(project.is_merged(kid, fake("x")))  # no pr.md
+        with open(os.path.join(kid, "pr.md"), "w") as f:
+            f.write("title\n\nbody\n")
+        self.assertFalse(project.is_merged(kid, fake("x")))  # not opened yet
+        with open(os.path.join(kid, "pr.md"), "w") as f:
+            f.write("title\n\nbody\n\n## Opened\n\nhttps://github.com/o/r/pull/1\n")
+        self.assertTrue(project.is_merged(kid, fake("2026-11-07T10:00:00Z\n")))
+        self.assertFalse(project.is_merged(kid, fake("\n")))
+        self.assertFalse(project.is_merged(kid, fake("null\n")))
+        self.assertFalse(project.is_merged(kid, fake("2026-11-07\n", code=1)))
+
+    def test_is_merged_survives_a_missing_or_hanging_gh(self):
+        kid = os.path.join(self.tmp, "kid")
+        os.makedirs(kid)
+        with open(os.path.join(kid, "pr.md"), "w") as f:
+            f.write("t\n\n## Opened\n\nhttps://github.com/o/r/pull/1\n")
+
+        def no_gh(*a, **k):
+            raise FileNotFoundError("gh")
+
+        def hangs(*a, **k):
+            raise project.subprocess.TimeoutExpired("gh", 1)
+        self.assertFalse(project.is_merged(kid, no_gh))
+        self.assertFalse(project.is_merged(kid, hangs))
+
+    def test_status_tolerates_a_child_state_without_current(self):
+        project.spawn(self.parent)
+        with open(os.path.join(self.parent, "proj-1", "state.json"), "w") as f:
+            json.dump({"card": "proj-1"}, f)
+        rows = project.status(self.parent, lambda kid: False)
+        self.assertEqual(rows[0]["step"], "?")
+
     def test_spawn_creates_children_once(self):
         project.spawn(self.parent)
         kid = os.path.join(self.parent, "proj-2")

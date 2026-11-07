@@ -22,19 +22,35 @@ CHILD_WORKFLOW = "task"
 
 def parse(text):
     """Rows of the first table: [{id, title, repo, blocked, edge}]. Raises ValueError on a bad id, edge, blocker or cycle."""
-    rows = [[c.strip() for c in l.strip().strip("|").split("|")] for l in text.splitlines() if l.strip().startswith("|")]
+    lines = [l.strip() for l in text.splitlines()]
+    start = next((n for n, l in enumerate(lines) if l.startswith("|")), None)
+    if start is None:
+        raise ValueError("tasks.md has no table")
+    table = []
+    for l in lines[start:]:  # the first table only: notes and later tables below it are ignored
+        if not l.startswith("|"):
+            break
+        table.append([c.strip() for c in l.strip("|").split("|")])
+    if len(table) < 2 or not all(re.fullmatch(r":?-+:?", c) for c in table[1]):
+        raise ValueError("tasks.md table needs a header row and a |---| separator row")
+    if len(table) == 2:
+        raise ValueError("tasks.md table has no task rows")
     tasks = []
-    for r in rows[2:]:  # header and separator
+    for r in table[2:]:
         if len(r) != 5:
             raise ValueError(f"tasks.md row needs 5 columns: {r}")
         i, title, repo, blocked, edge = r
-        if not re.fullmatch(r"[\w.-]+", i) or edge not in EDGES:
-            raise ValueError(f"tasks.md row {i!r}: bad id, or edge {edge!r} is not one of {EDGES}")
-        tasks.append({"id": i, "title": title, "repo": repo,
-                      "blocked": [] if blocked == "-" else [b.strip() for b in blocked.split(",")], "edge": edge})
+        if not re.fullmatch(r"[\w.-]+", i):
+            raise ValueError(f"tasks.md row {i!r}: bad id (letters, digits, . _ - only)")
+        if not blocked:
+            raise ValueError(f"task {i}: blocked by is empty, write - for none")
+        blockers = [] if blocked == "-" else [b.strip() for b in blocked.split(",")]
+        if edge not in EDGES or (edge == "-") != (not blockers):
+            raise ValueError(f"task {i}: edge must be stated or inferred when it has blockers, - when it has none (got {edge!r})")
+        tasks.append({"id": i, "title": title, "repo": repo, "blocked": blockers, "edge": edge})
     ids = [t["id"] for t in tasks]
-    if not tasks or len(set(ids)) != len(ids):
-        raise ValueError("tasks.md needs rows with duplicate-free ids")
+    if len(set(ids)) != len(ids):
+        raise ValueError("tasks.md has duplicate task ids")
     for t in tasks:
         for b in t["blocked"]:
             if b not in ids:
@@ -83,7 +99,10 @@ def is_merged(kid, run=subprocess.run):
         return False
     if not m:
         return False
-    r = run(["gh", "pr", "view", m[1], "--json", "mergedAt", "-q", ".mergedAt"], capture_output=True, text=True)
+    try:  # `next` calls this for every child: a missing or hanging gh means "not merged", never a crash
+        r = run(["gh", "pr", "view", m[1], "--json", "mergedAt", "-q", ".mergedAt"], capture_output=True, text=True, timeout=20)
+    except (OSError, subprocess.TimeoutExpired):
+        return False
     return r.returncode == 0 and bool(r.stdout.strip()) and r.stdout.strip() != "null"
 
 
@@ -97,9 +116,11 @@ def status(parent, merged=is_merged):
             s = desk.load(kid)
         except FileNotFoundError:
             s = {"current": "not created"}
+        except ValueError:  # unreadable state.json
+            s = {"current": "unreadable"}
         wait = [b for b in t["blocked"] if b not in done]
         state = "merged" if t["id"] in done else f"waits on {', '.join(wait)}" if wait else "ready"
-        rows.append({"id": t["id"], "child": os.path.basename(kid), "title": t["title"], "step": s["current"],
+        rows.append({"id": t["id"], "child": os.path.basename(kid), "title": t["title"], "step": s.get("current", "?"),
                      "awaiting": s.get("awaiting") or "-", "state": state})
     return rows
 
