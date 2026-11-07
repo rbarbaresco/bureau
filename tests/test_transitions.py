@@ -145,6 +145,9 @@ class TransitionTest(unittest.TestCase):
                            ("- Scope:\n", ["Scope"]),
                            ("- None of the helpers cover X; add one.\n", ["None of the helpers cover X; add one."]),
                            ("Should we do X?\n- details\n", ["Should we do X?", "details"]),
+                           ("None (or should we split X?)\n", ["None (or should we split X?)"]),
+                           ("None: which of A or B?\n", ["None"]),
+                           ("None \u2014 which one do we pick?\n", ["None \u2014 which one do we pick?"]),
                            ("A plain paragraph question? Default: no\n", ["A plain paragraph question? Default: no"])):
             with self.subTest(text=text):
                 self.write_plan("## Open questions\n" + text)

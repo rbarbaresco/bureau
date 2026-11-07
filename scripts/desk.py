@@ -148,7 +148,7 @@ def _questions(card_dir, step_id):
         return []
     m = re.search(r"^## Open questions[ \t]*\n(.*?)(?=^## |\Z)", text, re.S | re.M | re.I)
     body = m.group(1).strip() if m else ""
-    if re.match(r"\s*(?:[-*]|\d+[.)])?[ \t]*\**(?:none|n/a)\**[ \t]*(?:$|[.(:—-])", body, re.I | re.M):
+    if re.match(r"\s*(?:[-*]|\d+[.)])?[ \t]*\**(?:none|n/a)\**[ \t]*(?:$|[.(:—-])", body, re.I | re.M) and "?" not in body.split("\n")[0]:
         return []
     items = re.split(r"^(?:[-*]|\d+[.)])\s+", body, flags=re.M)
     if items[0].strip().endswith(":"):
