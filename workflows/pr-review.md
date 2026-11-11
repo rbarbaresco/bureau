@@ -1,6 +1,6 @@
 ---
 name: pr-review
-use_when: An existing open PR in a registered repo (same repo, not a fork) has review comments to triage and apply. Not for new work from a ticket (use task or bugfix) or PRs from forks.
+use_when: Your own open PR in a registered repo (same repo, not a fork) has review comments to triage and apply. Someone else's PR: use peer-review. Not for new work from a ticket (use task or bugfix) or PRs from forks.
 ---
 ## triage
 persona: staff-engineer

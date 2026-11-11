@@ -7,7 +7,7 @@ import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 POST = os.path.join(ROOT, "scripts", "post_review.py")
-STEPS = [{"id": "review", "gate": "approve"}, {"id": "draft", "gate": "approve"}]
+STEPS = [{"id": "review", "gate": "approve"}, {"id": "review-comments", "gate": "approve"}]
 # stand-in for `gh`: `pr view` prints $T/head; the review post logs its args to $T/calls and its stdin to $T/payload
 FAKE_GH = """#!/bin/sh
 case "$1 $2" in
@@ -31,8 +31,8 @@ class PostReviewTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
         self.card = os.path.join(self.tmp, "desk", "bureau-7")
-        self.state(current="draft", awaiting="draft")
-        self.approve(review=True, draft=True)
+        self.state(current="review-comments", awaiting="review-comments")
+        self.approve(**{"review": True, "review-comments": True})
         self.draft(DRAFT)
         write(os.path.join(self.tmp, "head"), "abc123\n")
         write(os.path.join(self.tmp, "bin", "gh"), FAKE_GH)
@@ -45,10 +45,10 @@ class PostReviewTest(unittest.TestCase):
         write(os.path.join(self.card, "approvals.json"), json.dumps(a))
 
     def draft(self, d):
-        write(os.path.join(self.card, "draft.json"), json.dumps(d))
+        write(os.path.join(self.card, "review-comments.json"), json.dumps(d))
 
     def saved(self):
-        with open(os.path.join(self.card, "draft.json")) as f:
+        with open(os.path.join(self.card, "review-comments.json")) as f:
             return json.load(f)
 
     def post(self):
@@ -90,7 +90,7 @@ class PostReviewTest(unittest.TestCase):
     def test_refuses_without_approval_or_awaiting(self):
         self.approve(review=True)
         self.assertIn("not approved", self.post().stderr)
-        self.approve(review=True, draft=True)
+        self.approve(**{"review": True, "review-comments": True})
         self.state(current="review", awaiting="review")
         self.assertIn("not awaiting", self.post().stderr)
         self.assertEqual(self.calls(), "")
@@ -110,9 +110,9 @@ class PostReviewTest(unittest.TestCase):
             self.draft(d)
             r = self.post()
             self.assertNotEqual(r.returncode, 0, d)
-            self.assertIn("draft.json", r.stderr, d)
-        os.remove(os.path.join(self.card, "draft.json"))
-        self.assertIn("draft.json", self.post().stderr)
+            self.assertIn("review-comments.json", r.stderr, d)
+        os.remove(os.path.join(self.card, "review-comments.json"))
+        self.assertIn("review-comments.json", self.post().stderr)
         self.assertEqual(self.calls(), "")
 
     def test_failed_post_leaves_it_unposted(self):

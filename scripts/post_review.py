@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Post the review for a peer-review card whose `draft` step the human approved.
+"""Post the review for a peer-review card whose `review-comments` step the human approved.
 
 Usage: post_review.py <card-dir>
-Posts desk/<card>/draft.json as one GitHub review:
+Posts desk/<card>/review-comments.json as one GitHub review:
 {"repo": "o/r", "number": 7, "commit_id": "<head sha>", "event": "COMMENT|REQUEST_CHANGES|APPROVE",
  "body": "...", "comments": [{"path": "a.py", "line": 12, "body": "..."}]}
 Refuses if the PR's head moved since the draft. One request, so GitHub takes the whole review or none of it.
-Records "posted": <url> in draft.json, so a re-run posts nothing. Never pushes, never resolves threads.
+Records "posted": <url> in review-comments.json, so a re-run posts nothing. Never pushes, never resolves threads.
 """
 import json
 import os
@@ -35,11 +35,11 @@ def post_review(card):
     state = load(os.path.join(card, "state.json"))
     ids = [s["id"] for s in state.get("steps", [])]
     # a done card is allowed too, like pr.py: it repairs a post that failed after the card moved on
-    if not (state.get("awaiting") == "draft" or (state.get("current") == "done" and "draft" in ids)):
-        sys.exit(f"{card}: step 'draft' is not awaiting (awaiting={state.get('awaiting')}); nothing to post.")
-    if not load(os.path.join(card, "approvals.json")).get("draft"):
-        sys.exit("step 'draft' is not approved; the human must run /approve.")
-    path = os.path.join(card, "draft.json")
+    if not (state.get("awaiting") == "review-comments" or (state.get("current") == "done" and "review-comments" in ids)):
+        sys.exit(f"{card}: step 'review-comments' is not awaiting (awaiting={state.get('awaiting')}); nothing to post.")
+    if not load(os.path.join(card, "approvals.json")).get("review-comments"):
+        sys.exit("step 'review-comments' is not approved; the human must run /approve.")
+    path = os.path.join(card, "review-comments.json")
     try:
         with open(path) as f:
             draft = json.load(f)
@@ -53,7 +53,7 @@ def post_review(card):
     repo, number = draft["repo"], draft["number"]
     head = run(["gh", "pr", "view", str(number), "--repo", repo, "--json", "headRefOid", "--jq", ".headRefOid"])
     if head != draft["commit_id"]:
-        sys.exit(f"PR head moved to {head} since the draft ({draft['commit_id']}): redo the draft step against it.")
+        sys.exit(f"PR head moved to {head} since the draft ({draft['commit_id']}): redo the review-comments step against it.")
     payload = {k: draft[k] for k in ("commit_id", "event", "body", "comments") if k in draft}
     url = run(["gh", "api", f"repos/{repo}/pulls/{number}/reviews", "--method", "POST", "--input", "-",
                "--jq", ".html_url"], input=json.dumps(payload))

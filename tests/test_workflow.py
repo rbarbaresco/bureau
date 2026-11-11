@@ -30,7 +30,7 @@ class WorkflowTest(unittest.TestCase):
 
     def test_peer_review_never_writes_code_and_posts_behind_a_gate(self):
         wf = workflow.parse(os.path.join(ROOT, "workflows", "peer-review.md"))
-        self.assertEqual([s["id"] for s in wf["steps"]], ["review", "draft"])
+        self.assertEqual([s["id"] for s in wf["steps"]], ["review", "review-comments"])
         self.assertFalse(any(s["writes_code"] for s in wf["steps"]))
         self.assertTrue(all(s["gate"] == "approve" and s["instructions"] for s in wf["steps"]))
         self.assertIn("post_review.py", wf["steps"][-1]["instructions"])

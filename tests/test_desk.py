@@ -157,11 +157,11 @@ class DoctorTest(unittest.TestCase):
 
     def test_done_card_with_unposted_review(self):
         self.set(current="done")
-        with open(os.path.join(self.card, "draft.json"), "w") as f:
+        with open(os.path.join(self.card, "review-comments.json"), "w") as f:
             json.dump({"repo": "o/r", "number": 7}, f)
         [line] = self.doctor()
         self.assertIn("scripts/post_review.py", line)
-        with open(os.path.join(self.card, "draft.json"), "w") as f:
+        with open(os.path.join(self.card, "review-comments.json"), "w") as f:
             json.dump({"repo": "o/r", "number": 7, "posted": "https://example/r/1"}, f)
         self.assertEqual(self.doctor(), [])
 
