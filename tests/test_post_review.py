@@ -72,6 +72,12 @@ class PostReviewTest(unittest.TestCase):
         self.assertEqual(payload["event"], "COMMENT")
         self.assertEqual(payload["comments"], DRAFT["comments"])
         self.assertNotIn("repo", payload)
+
+    def test_sends_only_the_comment_keys_github_permits(self):
+        self.draft({**DRAFT, "comments": [{"path": "a.py", "line": 3, "side": "RIGHT", "severity": "high", "body": "x"}]})
+        self.assertEqual(self.post().returncode, 0)
+        with open(os.path.join(self.tmp, "payload")) as f:
+            self.assertEqual(json.load(f)["comments"], [{"path": "a.py", "line": 3, "side": "RIGHT", "body": "x"}])
         self.assertEqual(self.saved()["posted"], "https://github.com/o/r/pull/7#pullrequestreview-1")
 
     def test_second_run_posts_nothing(self):
@@ -105,7 +111,9 @@ class PostReviewTest(unittest.TestCase):
     def test_bad_draft_is_rejected_before_anything_posts(self):
         bad = [{}, {**DRAFT, "event": "MERGE"}, {**DRAFT, "commit_id": ""}, {**DRAFT, "number": "7"},
                {**DRAFT, "body": "", "comments": []}, {**DRAFT, "comments": [{"path": "a.py", "body": "x"}]},
-               {**DRAFT, "comments": [{"path": "a.py", "line": 1, "body": " "}]}, [DRAFT]]
+               {**DRAFT, "comments": [{"path": "a.py", "line": 1, "body": " "}]}, [DRAFT],
+               {**DRAFT, "number": True}, {**DRAFT, "comments": [{"path": "a.py", "line": 0, "body": "x"}]},
+               {**DRAFT, "comments": [{"path": "a.py", "line": True, "body": "x"}]}, {**DRAFT, "body": ""}]
         for d in bad:
             self.draft(d)
             r = self.post()

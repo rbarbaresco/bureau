@@ -15,19 +15,23 @@ import sys
 from pr import load, run
 
 EVENTS = ("COMMENT", "REQUEST_CHANGES", "APPROVE")
+COMMENT_KEYS = ("path", "line", "side", "start_line", "start_side", "body")  # GitHub rejects any other key
 
 
 def valid(d):
     def text(v):
         return isinstance(v, str) and v.strip() != ""
+
+    def pos(v):  # bool is an int subclass, so check the exact type
+        return type(v) is int and v > 0
     if not isinstance(d, dict):
         return False
     comments = d.get("comments", [])
-    return (text(d.get("repo")) and isinstance(d.get("number"), int) and text(d.get("commit_id"))
-            and d.get("event") in EVENTS and isinstance(d.get("body", ""), str) and isinstance(comments, list)
-            and (text(d.get("body")) or comments)
-            and all(isinstance(c, dict) and text(c.get("path")) and isinstance(c.get("line"), int)
-                    and text(c.get("body")) for c in comments))
+    # GitHub requires a body for COMMENT and REQUEST_CHANGES; one rule for all three keeps it simple
+    return (text(d.get("repo")) and pos(d.get("number")) and text(d.get("commit_id"))
+            and d.get("event") in EVENTS and text(d.get("body")) and isinstance(comments, list)
+            and all(isinstance(c, dict) and text(c.get("path")) and pos(c.get("line")) and text(c.get("body"))
+                    for c in comments))
 
 
 def post_review(card):
@@ -46,15 +50,16 @@ def post_review(card):
     except (FileNotFoundError, json.JSONDecodeError) as e:
         sys.exit(f"{path} missing or invalid ({e}): write the draft first.")
     if not valid(draft):
-        sys.exit(f"{path} needs repo, an int number, commit_id, an event in {EVENTS}, a body or comments, "
-                 "and each comment a path, an int line and a non-empty body.")
+        sys.exit(f"{path} needs repo, a positive int number, commit_id, an event in {EVENTS}, a non-empty body, "
+                 "and each comment a path, a positive int line and a non-empty body.")
     if draft.get("posted"):
         return f"already posted: {draft['posted']}"
     repo, number = draft["repo"], draft["number"]
     head = run(["gh", "pr", "view", str(number), "--repo", repo, "--json", "headRefOid", "--jq", ".headRefOid"])
     if head != draft["commit_id"]:
         sys.exit(f"PR head moved to {head} since the draft ({draft['commit_id']}): redo the review-comments step against it.")
-    payload = {k: draft[k] for k in ("commit_id", "event", "body", "comments") if k in draft}
+    payload = {k: draft[k] for k in ("commit_id", "event", "body") if k in draft}
+    payload["comments"] = [{k: c[k] for k in COMMENT_KEYS if k in c} for c in draft.get("comments", [])]
     url = run(["gh", "api", f"repos/{repo}/pulls/{number}/reviews", "--method", "POST", "--input", "-",
                "--jq", ".html_url"], input=json.dumps(payload))
     draft["posted"] = url

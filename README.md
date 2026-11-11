@@ -158,7 +158,7 @@ Describe a problem or an idea ("write an issue for this") and the `issue` skill 
 
 In `small`, `understand` replaces the separate plan: your approval there is what allows code to be written.
 
-**Whose PR.** For `/work <repo> pr <n>`, Bureau compares the PR's author with your `gh` login (`gh api user`). Your PR gets `pr-review`, which can commit to and push its branch. Anyone else's gets `peer-review`, which only reads the PR and posts one review after you approve the drafted comments. To change a teammate's branch anyway, name `pr-review` when you start the card.
+**Whose PR.** For `/work <repo> pr <n>`, Bureau compares the PR's author with your `gh` login (`gh api user`). Your own same-repo PR gets `pr-review`, which can commit to and push its branch. Anything else (a teammate's PR, or any PR from a fork) gets `peer-review`, which only reads the PR and posts one review after you approve the drafted comments. To change a teammate's same-repo branch anyway, name `pr-review` when you start the card; forks stay review-only, because Bureau cannot push to them.
 
 **Docs step.** In `bugfix`, `task` and `pr-review`, a `docs` step (persona `journalist`) follows the code step: it updates the README, docs and instruction files the change makes stale and commits, or writes `Docs: none needed, <reason>` in `docs.md`. It writes code but has no gate of its own: it runs only after the code step is approved, and its commits are in the branch you approve at the `pr` gate (in `pr-review`, `reply.md` lists them before `reply` pushes). The review step ranks a stale doc as a finding. `desk.py` refuses a step list where a code step with no gate has no gated step after it. `small` keeps docs inside `build` (a docs-only change skips it). No hook checks it.
 
