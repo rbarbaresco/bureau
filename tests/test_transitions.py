@@ -162,7 +162,7 @@ class TransitionTest(unittest.TestCase):
     def test_next_block_reply_step_says_it_posts(self):
         card = os.path.join(tempfile.mkdtemp(), "PRR-1")
         desk.init(card, [{"id": "reply", "gate": "approve"}], "pr-review")
-        self.assertIn("pushes the branch and posts reply.json, then the run ends", desk.next_block(card, desk.finish(card)))
+        self.assertIn("pushes the branch (if any) and posts reply.json, then the run ends", desk.next_block(card, desk.finish(card)))
 
     def test_next_block_draft_step_says_it_posts_the_review(self):
         card = os.path.join(tempfile.mkdtemp(), "PEER-1")
