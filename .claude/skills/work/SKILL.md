@@ -24,14 +24,15 @@ Paths below are relative to the Bureau root. Never run steps the human did not c
 ## 2. Overview (for the human to read)
 
 Before sizing, check the card against the repo as it is now: read the code it points at, `git log` for the area,
-and open or linked PRs/issues. Then, at most ten lines: **Validity** (`valid`, `real bug`, `already fixed`,
-`stale or partly wrong` (claims don't match the code), `duplicate`, `nitpick` or `unverifiable`, with a one-line reason
-and a file or PR reference); what is asked; acceptance criteria and what is unclear; the likely repo(s) from `repos.yaml`;
-size and risk (auth, data, infra, migrations). Flag anything blocking.
+and open or linked PRs/issues. Then, at most ten lines: **Context** (one plain sentence from `card.md` saying what the
+card is about and why it was raised, for a reader who hasn't seen the card); **Validity** (`valid`, `real bug`,
+`already fixed`, `stale or partly wrong` (claims don't match the code), `duplicate`, `nitpick` or `unverifiable`, with
+a one-line reason and a file or PR reference); what is asked; acceptance criteria and what is unclear; the likely
+repo(s) from `repos.yaml`; size and risk (auth, data, infra, migrations). Flag anything blocking.
 
-If Validity is not `valid` or `real bug`, say so first and stop: the human decides to continue, close the card, or fix
-the card text. Still show the rest of the overview, but do not propose a workflow until they answer. On "continue" go to
-§3; after a card-text fix, redo §2. A card with no repo pointers is `unverifiable`.
+If Validity is not `valid` or `real bug`, say so right after Context and stop: the human decides to continue, close the
+card, or fix the card text. Still show the rest of the overview, but do not propose a workflow until they answer. On
+"continue" go to §3; after a card-text fix, redo §2. A card with no repo pointers is `unverifiable`.
 
 ## 3. Workflow
 
