@@ -123,7 +123,7 @@ def finish(card_dir):
 
 
 SIDE_EFFECTS = {"pr": "pushes the branch and opens a draft PR, then ",
-                "reply": "pushes the branch and posts reply.json, then ",
+                "reply": "pushes the branch (if any) and posts reply.json, then ",
                 "review-comments": "posts the review in review-comments.json, then "}  # what approve.py runs before advancing
 
 
