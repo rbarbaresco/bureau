@@ -1,6 +1,6 @@
 ---
 name: peer-review
-use_when: An open PR someone else wrote (author is not the `gh` user; forks included) that you review: findings, then drafted review comments posted as one review. Never commits or pushes. For your own PR's review comments, use pr-review.
+use_when: An open PR you review rather than change: someone else wrote it (author is not the `gh` user), or it comes from a fork. You get findings, then drafted review comments posted as one review. Never commits or pushes. For review comments on your own same-repo PR, use pr-review.
 ---
 ## review
 persona: qa

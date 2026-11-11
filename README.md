@@ -153,7 +153,7 @@ Describe a problem or an idea ("write an issue for this") and the `issue` skill 
 | `task` | A well-defined story in one repo | understand → **plan** → **build** → docs → review → **pr** |
 | `small` | A small, low-risk change in one repo with an obvious approach (docs, config, renames) | **understand** → **build** → review → **pr** |
 | `pr-review` | Your own open same-repo PR with review comments to triage and apply (`/work <repo> pr <n>`) | **triage** → **fix** → docs → review → **reply** |
-| `peer-review` | Someone else's open PR (forks included) that you review: no worktree, no commits, no push | **review** → **review-comments** |
+| `peer-review` | An open PR you review: a teammate's, or any from a fork; no worktree, no commits, no push | **review** → **review-comments** |
 | `project` | A source already split into several tasks (sub-issues, a task list): one child card per task | **intake** → **run** (loop) |
 
 In `small`, `understand` replaces the separate plan: your approval there is what allows code to be written.
