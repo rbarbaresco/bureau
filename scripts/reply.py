@@ -2,13 +2,16 @@
 """Push the PR branch and post the replies for a card whose `reply` step the human approved.
 
 Usage: reply.py <card-dir>
-Pushes the worktree's branch (never force), then posts each entry of desk/<card>/reply.json:
+Pushes the worktree's branch (never force), then posts each entry of desk/<card>/reply.json.
+With no worktree (no code changed) it skips the push and posts to the first github.com/<owner>/<repo>/pull/<n>
+link in card.md. reply.json:
 [{"in_reply_to": <review comment id or null>, "body": "..."}]. An id replies in that review thread;
 null adds a PR comment. Posted entries are marked in reply.json, so a re-run skips them.
 Never resolves threads (the reviewer does). Exits non-zero on any failure; safe to run again.
 """
 import json
 import os
+import re
 import sys
 
 from pr import load, run
@@ -25,9 +28,19 @@ def post_replies(card):
         sys.exit("step 'reply' is not approved; the human must run /approve.")
     root = os.path.join(card, "worktrees")
     trees = sorted(d for d in os.listdir(root) if os.path.isdir(os.path.join(root, d))) if os.path.isdir(root) else []
-    if len(trees) != 1:  # shortcut: one worktree per card
-        sys.exit(f"expected exactly one worktree under {card}/worktrees, found {len(trees)}.")
-    wt = os.path.join(root, trees[0])
+    if len(trees) > 1:  # shortcut: one worktree per card
+        sys.exit(f"expected at most one worktree under {card}/worktrees, found {len(trees)}.")
+    wt = os.path.join(root, trees[0]) if trees else None
+    if not wt:  # no code changed (fix skipped): nothing to push, the PR comes from the card's source link
+        try:
+            with open(os.path.join(card, "card.md")) as f:
+                # shortcut: first PR link wins; intake writes the card's own Source line first
+                link = re.search(r"github\.com/([\w.-]+/[\w.-]+)/pull/(\d+)", f.read())
+        except FileNotFoundError:
+            link = None
+        if not link:
+            sys.exit(f"no worktree and no github.com/<owner>/<repo>/pull/<n> link in {card}/card.md: "
+                     "add the PR link to card.md.")
     path = os.path.join(card, "reply.json")
     try:
         with open(path) as f:
@@ -38,11 +51,14 @@ def post_replies(card):
     if not isinstance(replies, list) or not all(
             isinstance(r, dict) and isinstance(r.get("body"), str) and r["body"].strip() for r in replies):
         sys.exit(f"{path} must be a list of objects, each with a non-empty string 'body'.")
-    if run(["git", "-C", wt, "status", "--porcelain"]):
-        sys.exit(f"uncommitted changes in {wt}: commit them first.")
-    number = run(["gh", "pr", "view", "--json", "number", "--jq", ".number"], cwd=wt)
-    repo = run(["gh", "repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"], cwd=wt)
-    run(["git", "-C", wt, "push"])
+    if wt:
+        if run(["git", "-C", wt, "status", "--porcelain"]):
+            sys.exit(f"uncommitted changes in {wt}: commit them first.")
+        number = run(["gh", "pr", "view", "--json", "number", "--jq", ".number"], cwd=wt)
+        repo = run(["gh", "repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"], cwd=wt)
+        run(["git", "-C", wt, "push"])
+    else:
+        repo, number = link.groups()
     posted = 0
     for r in replies:
         if r.get("posted"):
@@ -51,12 +67,12 @@ def post_replies(card):
             run(["gh", "api", f"repos/{repo}/pulls/{number}/comments/{r['in_reply_to']}/replies",
                  "-f", f"body={r['body']}"], cwd=wt)
         else:
-            run(["gh", "pr", "comment", number, "--body-file", "-"], cwd=wt, input=r["body"])
+            run(["gh", "pr", "comment", number, "--repo", repo, "--body-file", "-"], cwd=wt, input=r["body"])
         r["posted"] = True
         posted += 1
         with open(path, "w") as f:  # after each post, so a failure half-way does not repeat the earlier ones
             json.dump(replies, f, indent=2)
-    return f"pushed; {posted} replies posted on PR #{number}"
+    return f"{'pushed; ' if wt else ''}{posted} replies posted on PR #{number}"
 
 
 if __name__ == "__main__":

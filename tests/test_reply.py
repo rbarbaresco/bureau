@@ -77,7 +77,7 @@ class ReplyTest(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("fix", git(self.origin, "log", "--format=%s", "feat/x"))
         self.assertIn("api repos/o/r/pulls/7/comments/11/replies -f body=Fixed in abc", self.calls())
-        self.assertIn("pr comment 7 --body-file -\nThanks all", self.calls())
+        self.assertIn("pr comment 7 --repo o/r --body-file -\nThanks all", self.calls())
         self.assertNotIn("resolve", self.calls())
 
     def test_rerun_skips_posted_replies(self):
@@ -133,6 +133,38 @@ class ReplyTest(unittest.TestCase):
         s = json.load(open(os.path.join(self.card, "state.json")))
         write(os.path.join(self.card, "state.json"), json.dumps({**s, "current": "done", "awaiting": None}))
         self.assertEqual(self.run_reply().returncode, 0)
+
+    def no_worktree_card(self, card_md):
+        """A card whose fix step was skipped: no worktree, PR known only from card.md."""
+        self.card = os.path.join(self.tmp, "desk", "pr-9")
+        write(os.path.join(self.card, "state.json"),
+              json.dumps({"card": "pr-9", "current": "reply", "awaiting": "reply", "steps": STEPS}))
+        write(os.path.join(self.card, "card.md"), card_md)
+        self.approve(reply=True)
+        write(os.path.join(self.card, "reply.json"), json.dumps(
+            [{"in_reply_to": 11, "body": "Keeping it"}, {"in_reply_to": None, "body": "Thanks"}]))
+
+    def test_no_worktree_posts_to_the_pr_linked_in_card_md(self):
+        # pull/9, while the fake `gh pr view` answers 7: posting to 9 proves the link was used
+        self.no_worktree_card("# t\n\nSource: https://github.com/o/r2/pull/9 (open PR)\n"
+                              "See also https://github.com/x/y/pull/1\n")
+        r = self.run_reply()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("PR #9", r.stdout)
+        self.assertIn("api repos/o/r2/pulls/9/comments/11/replies -f body=Keeping it", self.calls())
+        self.assertIn("pr comment 9 --repo o/r2 --body-file -\nThanks", self.calls())
+
+    def test_no_worktree_and_no_pr_link_is_refused(self):
+        self.no_worktree_card("# t\n\nSource: https://github.com/o/r2/issues/9\n")
+        r = self.run_reply()
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("card.md", r.stderr)
+        self.assertEqual(self.calls(), "")
+
+    def test_two_worktrees_are_refused(self):
+        os.makedirs(os.path.join(self.card, "worktrees", "zz"))
+        self.assertIn("found 2", self.run_reply().stderr)
+        self.assertEqual(self.calls(), "")
 
 
 if __name__ == "__main__":

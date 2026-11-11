@@ -43,4 +43,4 @@ persona: staff-engineer
 gate: approve
 
 Draft the replies and show them to the human. Write reply.md (readable: which comment, what we say, the commit; then any docs commits from docs.md, which the push also carries) and reply.json:
-`[{"in_reply_to": <review comment id or null>, "body": "..."}]`. A null id posts a PR comment. Replies to "disagree" and "needs a question" items say why, briefly; do not resolve threads (the reviewer does). `/approve` on this step runs `scripts/reply.py`, which pushes the branch (no force) and posts the replies.
+`[{"in_reply_to": <review comment id or null>, "body": "..."}]`. A null id posts a PR comment. Replies to "disagree" and "needs a question" items say why, briefly; do not resolve threads (the reviewer does). `/approve` on this step runs `scripts/reply.py`, which pushes the branch (no force) and posts the replies. With no worktree (fix skipped) it skips the push and posts to the PR linked in card.md.
