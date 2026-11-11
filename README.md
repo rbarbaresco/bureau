@@ -22,6 +22,7 @@ What you get:
 | `/archive <card-id>` | Move a finished card out of `desk/` into `desk/.archive/` and remove its worktrees |
 | `/consult` (in plain words: "ask the architect…") | Get a persona's advice on the current card |
 | `/issue` (in plain words: "write an issue for this") | Draft a GitHub issue and file it after you approve |
+| `/tune-voice` | Teach Bureau how you want PRs, replies, issues and documents to read (see [Your voice](#your-voice)) |
 | `scripts/ui.py` | Watch your cards in a read-only browser page |
 | Hooks | Refuse code edits before the gate, the repo rules and card ownership are in place |
 
@@ -129,7 +130,7 @@ What happens next:
    | Feedback in plain words | The same step runs again; the old artifact is kept as `plan.v1.md` and your words as `plan.feedback-1.md` |
    | "Go back to plan, the approach is wrong" | The run returns to that step; later approvals are cleared and your reason is kept as `reject-1.md` |
 
-Every `/work` and `/approve` reply ends with a **Next** block (`next_block` in `scripts/desk.py`), one fact per row. At a gate: `Card` (card, workflow, step N of M), `Steps` (a `[x]`/`[ ]` checklist of the workflow), `Review` (the artifact to read), `Questions` (the short labels of its `## Open questions`, or `none`), `Approve` (the `/approve <card-id>` command and what it starts: the next step with its persona and gate, plus the push and draft PR for `pr` or the posted replies for `reply`), `Feedback` and `Go back`, plus `Finish` (`/approve <card-id> done`) on a loop step. Once a run has started, `desk.py finish` and `desk.py advance` print it, and `desk.py next <card-dir>` reprints it without changing anything (on resume, or after a failed `/approve`). The `work` and `approve` skills write it in the states before a run or when a command fails.
+Every `/work` and `/approve` reply ends with a **Next** block (`next_block` in `scripts/desk.py`), one fact per row. At a gate: `Card` (card, workflow, step N of M), `Steps` (a `[x]`/`[ ]` checklist of the workflow), `Review` (the artifact to read), `Questions` (the short labels of its `## Open questions`, or `none`), `Approve` (the `/approve <card-id>` command and what it starts: the next step with its persona, voice and gate, plus the push and draft PR for `pr` or the posted replies for `reply`), `Feedback` and `Go back`, plus `Finish` (`/approve <card-id> done`) on a loop step. Once a run has started, `desk.py finish` and `desk.py advance` print it, and `desk.py next <card-dir>` reprints it without changing anything (on resume, or after a failed `/approve`). The `work` and `approve` skills write it in the states before a run or when a command fails.
 
 To continue a run in a new session, run `/work <card-id>` again. It resumes at the current step. A card has one owner session at a time (see [How it works](#how-it-works)), so the resume is refused while another live session holds it.
 
@@ -140,6 +141,12 @@ At any point, ask in plain words: *"Ask the architect whether this belongs in th
 ### Drafting an issue
 
 Describe a problem or an idea ("write an issue for this") and the `issue` skill drafts a GitHub issue in the house style (Problem, then Expected, To verify or Question). It shows you the draft, and files it with `gh` only after you approve.
+
+### Your voice
+
+Personas decide what a step says. How it sounds is yours: run `/tune-voice` once and Bureau writes `voice.md` at its root, a short file of rules for each kind of text other people read (PR descriptions, review comments and replies, issues, ticket comments, documents), plus examples you like. Steps with `voice: operator` apply it on top of their persona, inside the repo's own template; the shipped `pr`, `reply`, `review-comments` and `publish` steps have it, and the `issue` skill uses it too. Without `voice.md` nothing changes.
+
+`/tune-voice` reads your global instruction files first (`~/AGENTS.md` and the like) and only adds what they don't cover. It asks which sources to learn from: past Claude Code sessions (`scripts/voice_samples.py` pulls the messages you typed, each with the draft it answered, from `$CLAUDE_CONFIG_DIR/projects`), your GitHub PRs and comments, Jira, or any connected tool such as Slack or email. One read-only subagent reads each source and proposes rules; it then asks about the gaps and writes only the rules you confirm. Run it again to refine, or `/tune-voice <one change>` for a single rule. `voice.md` is gitignored, like `repos.yaml`.
 
 ## How it works
 
@@ -164,7 +171,7 @@ In `small`, `understand` replaces the separate plan: your approval there is what
 
 **Step catalogue.** `steps/` holds one file per step: the shipped workflows' steps plus ones no workflow uses yet (`reproduce`, `research`, `migration`, `human-review`, `publish`, `followup`). Each has a `use_when`; `python3 scripts/workflow.py steps` lists them. Bureau reads it when it proposes a custom workflow or an extra step. Workflows keep their own copy of each step's text, so a workflow can word a step for itself; the catalogue is reference, not included.
 
-**Step.** Has a persona, a gate (`none` or `approve`; `approve+check` is accepted but behaves exactly like `approve`, `scripts/desk.py:20`) and, for steps that edit code, `writes_code: true`. A gated step can set `loop: true` to repeat: each `/approve` approves one round and keeps the step current, and `/approve done` (or `/approve <card-id> done`) approves the last round and moves on. `done` is ignored on a step that does not loop, and it is reserved: no card can be named `done`. Any gated step can loop: use it when every round needs its own approval (a `publish` step where you approve each version that goes out), not for ordinary feedback, which already redoes a step.
+**Step.** Has a persona, an optional voice (`voice: operator`, see [Your voice](#your-voice)), a gate (`none` or `approve`; `approve+check` is accepted but behaves exactly like `approve`, `scripts/desk.py:20`) and, for steps that edit code, `writes_code: true`. A gated step can set `loop: true` to repeat: each `/approve` approves one round and keeps the step current, and `/approve done` (or `/approve <card-id> done`) approves the last round and moves on. `done` is ignored on a step that does not loop, and it is reserved: no card can be named `done`. Any gated step can loop: use it when every round needs its own approval (a `publish` step where you approve each version that goes out), not for ordinary feedback, which already redoes a step.
 
 **Persona.** A markdown file in `personas/` describing a role: what it cares about and how it reports. `writer` personas work in your session. `read-only` personas run as subagents that cannot edit files. Shipped: `architect`, `staff-engineer`, `qa`, `journalist`, `prompt-engineer`.
 
@@ -242,7 +249,7 @@ gate: approve
 Write recommend.md: one recommendation, its trade-offs, and what you would do next.
 ```
 
-Rules: each `## heading` is a step id, unique within the file. Optional lines before the instructions: `persona:`, `gate:` (`none` or `approve`), `writes_code: true`, `loop: true` (gated steps only). `use_when` is what Bureau reads to pick a workflow, so write it as a short rule that also says when *not* to use it. Check it with:
+Rules: each `## heading` is a step id, unique within the file. Optional lines before the instructions: `persona:`, `gate:` (`none` or `approve`), `writes_code: true`, `loop: true` (gated steps only), `voice: operator` (steps that draft text for other people). `use_when` is what Bureau reads to pick a workflow, so write it as a short rule that also says when *not* to use it. Check it with:
 
 ```sh
 python3 scripts/workflow.py show discovery
@@ -295,11 +302,11 @@ python3 scripts/trial.py 91   # a PR number; or a branch (bureau/bureau-88) or a
 cd ../bureau-trial-91 && claude      # the hooks and skills come from that branch
 ```
 
-The copy links its `desk/` and `repos.yaml` to the real ones, so cards, config and claims are shared with the main checkout. `git status` there shows `desk/.gitkeep` as deleted and `desk` as untracked; that is the link, so do not `git add -A` there. Remove it with `git worktree remove ../bureau-trial-91`. Run the script from a checkout that has it (`main` once this is merged), not from a card's worktree.
+The copy links its `desk/`, `repos.yaml` and `voice.md` to the real ones, so cards, config and claims are shared with the main checkout. `git status` there shows `desk/.gitkeep` as deleted and `desk` as untracked; that is the link, so do not `git add -A` there. Remove it with `git worktree remove ../bureau-trial-91`. Run the script from a checkout that has it (`main` once this is merged), not from a card's worktree.
 
 ### Keep local files out of the public repo
 
-Anything personal (a persona with your company's conventions, a private workflow) can go in `personas/` or `workflows/` under a name you add to `.git/info/exclude`.
+Anything personal (a persona with your company's conventions, a private workflow) can go in `personas/` or `workflows/` under a name you add to `.git/info/exclude`. Your voice already stays local: `voice.md` is gitignored.
 
 ### Project cards: a list of tasks run in parallel
 
@@ -316,6 +323,7 @@ A child is merged when `gh pr view` says so for the PR link in its `pr.md`; the 
 | `.claude/skills/archive` | `/archive`: runs `scripts/archive.py` on a done card |
 | `.claude/skills/consult` | Ask a persona a question about the current card |
 | `.claude/skills/issue` | Draft a GitHub issue in the repo's house style, file it after you approve |
+| `.claude/skills/tune-voice` | `/tune-voice`: create or refine `voice.md` from your sources and answers |
 | `.claude/settings.json` | Registers the four hooks |
 | `hooks/gate.py` | Denies code writes until the gate, the rules and card ownership are satisfied |
 | `hooks/rules.py` | Collects and acknowledges the repo's instruction files |
@@ -333,10 +341,12 @@ A child is merged when `gh pr view` says so for the PR link in its `pr.md`; the 
 | `scripts/project.py` | For `project`: `spawn` creates the child cards from `tasks.md`, `status` shows ready, waiting or merged |
 | `scripts/trial.py` | Makes a detached checkout of a Bureau branch, PR or commit on your real `desk/` and `repos.yaml` (see [Try a Bureau branch](#try-a-bureau-branch-or-pr-before-it-is-merged)) |
 | `scripts/archive.py` | Moves a `done` card to `desk/.archive/` and removes its worktrees; refuses dirty or unpushed ones unless `--force` |
+| `scripts/voice_samples.py` | For `/tune-voice`: extracts the messages you typed in past Claude Code sessions, with the draft each answered |
 | `scripts/ui.py` | Read-only card viewer (see [Viewing cards](#viewing-cards)) |
 | `workflows/`, `steps/`, `personas/` | The shipped workflows, the step catalogue and personas, yours to extend |
 | `AGENTS.md` | Base rules loaded for every card |
 | `repos.yaml.sample` | Copy to `repos.yaml` |
+| `voice.md` | Your voice, written by `/tune-voice`; gitignored |
 | `LICENSE`, `CONTRIBUTING.md`, `SECURITY.md` | MIT license, how to contribute, how to report a gate bypass |
 | `.github/ISSUE_TEMPLATE/` | Issue forms: bug report, idea, question |
 | `desk/` | Run state, gitignored |
