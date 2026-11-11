@@ -44,7 +44,7 @@ the card text. Still show the rest of the overview, but do not propose a workflo
   approval and only the human ends it (a `publish` step is the example); it is not tied to one step.
 - Show the steps by pasting the table `python3 scripts/workflow.py show <name|file>` prints, unchanged (step, persona, gate, writes code).
   If the repo's rules require an entry that needs the PR number (a changelog fragment), propose a `followup` step after `pr` (`steps/followup.md`).
-  The human accepts or edits (add, skip, reorder, change a gate or persona). **Wait for confirmation.**
+  The human accepts or edits (add, skip, reorder, change a gate, persona or voice). **Wait for confirmation.**
 - On confirmation: `python3 scripts/workflow.py start <name|desk/<card-id>/workflow.md> desk/<card-id>`.
 
 ## 4. Run loop
@@ -52,6 +52,8 @@ the card text. Still show the rest of the overview, but do not propose a workflo
 For the current step in `state.json`:
 
 1. Read the step's section in `desk/<card-id>/workflow.md` and its persona in `personas/<persona>.md` (or `desk/<card-id>/personas/`).
+   A step with `voice: operator` also reads `voice.md` at the Bureau root, if it exists, and drafts the text other people will read
+   in that voice: the persona decides what to say, the voice how it sounds, inside the repo's own template. A subagent that drafts gets it in its prompt.
 2. Do the work as that persona. `read-only` personas run as a read-only subagent (their prompt has the persona, `card.md`,
    the prior artifacts, and the repo rules output). `writer` personas work in this session.
    A `project` card (parent): its `run` step spawns child cards and runs each ready child's current step as a background subagent
@@ -82,7 +84,7 @@ labels when there are any. A failed or blocked state names the exact command, or
 
 | State | Run | Needed |
 |---|---|---|
-| Intake done / workflow proposed | reply "ok", or name a workflow | confirm or edit the steps: add, skip, reorder, change a gate or persona |
+| Intake done / workflow proposed | reply "ok", or name a workflow | confirm or edit the steps: add, skip, reorder, change a gate, persona or voice |
 | Validity is not `valid` or `real bug` | none | continue, close the card, or fix the card text |
 | Step blocked (hook denied an edit, no card awaiting) | the command the error names | what the error says is missing |
 | Fetch failed or tool missing | none | paste the ticket text |

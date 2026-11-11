@@ -88,6 +88,12 @@ class TransitionTest(unittest.TestCase):
         self.assertIn("Steps:     [x] plan -> [x] build -> [ ] pr", out)
         self.assertIn("pushes the branch and opens a draft PR, then the run ends", out)
 
+    def test_next_block_names_the_voice_of_the_step_approve_starts(self):
+        card = os.path.join(tempfile.mkdtemp(), "ABC-8")
+        desk.init(card, [{"id": "build", "gate": "approve", "persona": "staff-engineer"},
+                         {"id": "pr", "gate": "approve", "persona": "staff-engineer", "voice": "operator"}], "task")
+        self.assertIn("pr starts (staff-engineer, voice operator, gate approve)", desk.next_block(card, desk.finish(card)))
+
     def test_next_block_running_and_done_carry_the_state_line(self):
         s = desk.load(self.card)
         s["steps"][0]["gate"] = "none"
