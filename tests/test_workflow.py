@@ -43,12 +43,12 @@ class WorkflowTest(unittest.TestCase):
 
     def test_steps_that_draft_for_other_people_carry_the_operator_voice(self):
         outward = {"pr", "reply", "publish", "review-comments"}
-        shipped = ["workflows/" + w + ".md" for w in ("bugfix", "task", "small", "pr-review", "peer-review")] \
-            + ["steps/" + s + ".md" for s in sorted(outward)]  # named, so a private workflow kept beside them is not judged
-        for f in shipped:
-            for s in workflow.parse(os.path.join(ROOT, f))["steps"]:
-                if s["id"] in outward:
-                    self.assertEqual(s.get("voice"), "operator", f"{f}/{s['id']}")
+        for d in ("workflows", "steps"):  # only the positive check, so a private workflow may set a voice anywhere
+            for f in sorted(os.listdir(os.path.join(ROOT, d))):
+                if f.endswith(".md"):
+                    for s in workflow.parse(os.path.join(ROOT, d, f))["steps"]:
+                        if s["id"] in outward:
+                            self.assertEqual(s.get("voice"), "operator", f"{d}/{f}/{s['id']}")
 
     def test_peer_review_never_writes_code_and_posts_behind_a_gate(self):
         wf = workflow.parse(os.path.join(ROOT, "workflows", "peer-review.md"))

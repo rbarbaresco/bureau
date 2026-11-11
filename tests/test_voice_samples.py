@@ -33,14 +33,17 @@ class VoiceSamplesTest(unittest.TestCase):
             user("injected", isMeta=True),
             user("summary of the chat", isCompactSummary=True),
             user("use this: <pasted_content id=1>secret log</pasted_content> but say it plainly"),
-            user("<command-message>issue</command-message>\n<command-name>/issue</command-name>\n<command-args>file the flaky test</command-args>"),
+            user("<command-message>issue</command-message>\n<command-name>/issue</command-name>\n<command-args>file the flaky test</command-args>",
+                 origin={"kind": "human"}),
             user("<command-message>approve</command-message>\n<command-name>/approve</command-name>\n<command-args></command-args>"),
             user("relayed from a teammate", origin={"kind": "peer"}),
             user("typed with origin", origin={"kind": "human"}),
+            user("<command-name>/model</command-name>\n<command-args>sonnet</command-args>"),  # built-in: no origin
             {"type": "weird-new-record", "x": 1},
             "not even json",
         ])
-        self.write("-home-me-eval", "s3", [user("write a PR description for acme", entrypoint="sdk-cli")])
+        self.write("-home-me-eval", "s3", [user("write a PR description for acme", entrypoint="sdk-cli"),
+                                           user("# Plan: write the thing", entrypoint="sdk-ts")])
         self.write("-home-me-private", "s2", [user("private stuff")])
 
     def write(self, project, session, records):

@@ -52,12 +52,14 @@ def _typed(rec, msg):
     """The text the operator typed in this user record, or None for anything they did not type."""
     origin = rec.get("origin")
     if not isinstance(msg.get("content"), str) or rec.get("isMeta") or rec.get("isCompactSummary") \
-            or rec.get("entrypoint") == "sdk-cli" or (isinstance(origin, dict) and origin.get("kind") != "human"):
-        return None  # scripted (sdk-cli) runs, and relayed, notification or injected lines
+            or str(rec.get("entrypoint") or "").startswith("sdk-") \
+            or (isinstance(origin, dict) and origin.get("kind") != "human"):
+        return None  # Agent SDK runs (sdk-cli, sdk-ts, ...), and relayed, notification or injected lines
     text = PASTED.sub("[pasted]", msg["content"]).strip()
     args = ARGS.search(text)
-    if args:
-        text = args.group(1).strip()
+    if args:  # a slash command: its arguments, only when typed (built-ins like /model carry no human origin)
+        human = isinstance(origin, dict) and origin.get("kind") == "human"
+        text = args.group(1).strip() if human else ""
     return text if text and not text.startswith(NOT_TYPED) else None
 
 

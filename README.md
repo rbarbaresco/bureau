@@ -22,7 +22,7 @@ What you get:
 | `/archive <card-id>` | Move a finished card out of `desk/` into `desk/.archive/` and remove its worktrees |
 | `/consult` (in plain words: "ask the architect…") | Get a persona's advice on the current card |
 | `/issue` (in plain words: "write an issue for this") | Draft a GitHub issue and file it after you approve |
-| `/tune-voice` | Teach Bureau how you want PRs, replies, issues and documents to read (see [Your voice](#your-voice)) |
+| `/tune-voice` | Teach Bureau how you want PRs, replies, issues, ticket comments and documents to read (see [Your voice](#your-voice)) |
 | `scripts/ui.py` | Watch your cards in a read-only browser page |
 | Hooks | Refuse code edits before the gate, the repo rules and card ownership are in place |
 
@@ -146,7 +146,7 @@ Describe a problem or an idea ("write an issue for this") and the `issue` skill 
 
 Personas decide what a step says. How it sounds is yours: run `/tune-voice` once and Bureau writes `voice.md` at its root, a short file of rules for each kind of text other people read (PR descriptions, review comments and replies, issues, ticket comments, documents), plus examples you like. Steps with `voice: operator` apply it on top of their persona, inside the repo's own template; the shipped `pr`, `reply`, `review-comments` and `publish` steps have it, and the `issue` skill and tracker comments use it too. Without `voice.md` nothing changes.
 
-`/tune-voice` reads your global instruction files first (`~/AGENTS.md` and the like) and only adds what they don't cover. It asks which sources to learn from: past Claude Code sessions (`scripts/voice_samples.py` pulls the messages you typed, each with the draft it answered, from `$CLAUDE_CONFIG_DIR/projects`, skipping scripted `sdk-cli` runs), your GitHub PRs and comments, Jira, or any connected tool such as Slack or email. One read-only subagent reads each source and proposes rules; it then asks about the gaps and writes only the rules you confirm. Run it again to refine, or `/tune-voice <one change>` for a single rule. `voice.md` is gitignored, like `repos.yaml`.
+`/tune-voice` reads your global instruction files first (`~/AGENTS.md` and the like) and only adds what they don't cover. It asks which sources to learn from: past Claude Code sessions (`scripts/voice_samples.py` pulls the messages you typed, each with the draft it answered, from `$CLAUDE_CONFIG_DIR/projects`, skipping Agent SDK runs), your GitHub PRs and comments, Jira, or any connected tool such as Slack or email. One read-only subagent reads each source and proposes rules; it then asks about the gaps and writes only the rules you confirm. Run it again to refine, or `/tune-voice <one change>` for a single rule. `voice.md` is gitignored, like `repos.yaml`.
 
 ## How it works
 
