@@ -155,6 +155,16 @@ class DoctorTest(unittest.TestCase):
             f.write("\n## Opened\nhttps://example/pr/1\n")
         self.assertEqual(len(self.doctor()), 1)
 
+    def test_done_card_with_unposted_review(self):
+        self.set(current="done")
+        with open(os.path.join(self.card, "draft.json"), "w") as f:
+            json.dump({"repo": "o/r", "number": 7}, f)
+        [line] = self.doctor()
+        self.assertIn("scripts/post_review.py", line)
+        with open(os.path.join(self.card, "draft.json"), "w") as f:
+            json.dump({"repo": "o/r", "number": 7, "posted": "https://example/r/1"}, f)
+        self.assertEqual(self.doctor(), [])
+
     def test_worktree_on_wrong_branch(self):
         subprocess.run(["git", "-C", self.wt, "checkout", "-q", "-b", "other"], check=True)
         [line] = self.doctor()

@@ -28,6 +28,13 @@ class WorkflowTest(unittest.TestCase):
             self.assertTrue(any(s["gate"] == "approve" for s in before), name)
             self.assertTrue(all(s["instructions"] for s in wf["steps"]))
 
+    def test_peer_review_never_writes_code_and_posts_behind_a_gate(self):
+        wf = workflow.parse(os.path.join(ROOT, "workflows", "peer-review.md"))
+        self.assertEqual([s["id"] for s in wf["steps"]], ["review", "draft"])
+        self.assertFalse(any(s["writes_code"] for s in wf["steps"]))
+        self.assertTrue(all(s["gate"] == "approve" and s["instructions"] for s in wf["steps"]))
+        self.assertIn("post_review.py", wf["steps"][-1]["instructions"])
+
     def test_step_catalogue_parses(self):
         d = os.path.join(ROOT, "steps")
         files = sorted(f for f in os.listdir(d) if f.endswith(".md"))
