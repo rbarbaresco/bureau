@@ -89,6 +89,6 @@ labels when there are any. A failed or blocked state names the exact command, or
 
 ## Rules
 
-- Tracker writes (comments, status changes, creating issues) need the human's explicit approval first. Opening a PR is approved by `/approve` on the `pr` step (no second confirmation); `scripts/pr.py` opens it as a draft. Posting replies on an existing PR is approved by `/approve` on the `reply` step; `scripts/reply.py` pushes and posts. Posting a review on someone else's PR is approved by `/approve` on the `review-comments` step; `scripts/post_review.py` posts it, never pushes. Merging is the human's.
+- Tracker writes (comments, status changes, creating issues) need the human's explicit approval first. Opening a PR is approved by `/approve` on the `pr` step (no second confirmation); `scripts/pr.py` opens it as a draft. Posting replies on an existing PR is approved by `/approve` on the `reply` step; `scripts/reply.py` pushes and posts. Posting a review on a PR you review (`peer-review`) is approved by `/approve` on the `review-comments` step; `scripts/post_review.py` posts it, never pushes. Merging is the human's.
 - Status updates in tracker comments are summaries, not logs.
 - End each reply with where work landed: Bureau path, card folder, worktree and branch, committed or not.
