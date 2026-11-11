@@ -158,9 +158,15 @@ class TransitionTest(unittest.TestCase):
         desk.init(card, [{"id": "reply", "gate": "approve"}], "pr-review")
         self.assertIn("pushes the branch and posts reply.json, then the run ends", desk.next_block(card, desk.finish(card)))
 
+    def test_next_block_draft_step_says_it_posts_the_review(self):
+        card = os.path.join(tempfile.mkdtemp(), "PEER-1")
+        desk.init(card, [{"id": "review-comments", "gate": "approve"}], "peer-review")
+        self.assertIn("posts the review in review-comments.json, then the run ends", desk.next_block(card, desk.finish(card)))
+
     def test_next_block_done_names_the_merge_only_when_the_run_opened_a_pr(self):
         for steps, needed in (([{"id": "pr", "gate": "none"}], "merge the draft PR (yours)"),
                               ([{"id": "reply", "gate": "none"}], "nothing; the PR's author merges"),
+                              ([{"id": "review-comments", "gate": "none"}], "nothing; the PR's author merges"),
                               ([{"id": "plan", "gate": "none"}], "nothing")):
             card = os.path.join(tempfile.mkdtemp(), "D-1")
             desk.init(card, steps)

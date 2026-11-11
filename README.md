@@ -145,17 +145,20 @@ Describe a problem or an idea ("write an issue for this") and the `issue` skill 
 
 **Card.** The thing you are working on. Its source of truth is the tracker; Bureau holds a copy in `card.md`.
 
-**Workflow.** A markdown file in `workflows/` listing steps. Five ship with Bureau:
+**Workflow.** A markdown file in `workflows/` listing steps. Six ship with Bureau:
 
 | Workflow | Use when | Steps (gates in bold) |
 |---|---|---|
 | `bugfix` | A defect you can reproduce or locate in one repo | **plan** → **fix** → docs → review → **pr** |
 | `task` | A well-defined story in one repo | understand → **plan** → **build** → docs → review → **pr** |
 | `small` | A small, low-risk change in one repo with an obvious approach (docs, config, renames) | **understand** → **build** → review → **pr** |
-| `pr-review` | An open same-repo PR with review comments to triage and apply (`/work <repo> pr <n>`) | **triage** → **fix** → docs → review → **reply** |
+| `pr-review` | Your own open same-repo PR with review comments to triage and apply (`/work <repo> pr <n>`) | **triage** → **fix** → docs → review → **reply** |
+| `peer-review` | An open PR you review: a teammate's, or any from a fork; no worktree, no commits, no push | **review** → **review-comments** |
 | `project` | A source already split into several tasks (sub-issues, a task list): one child card per task | **intake** → **run** (loop) |
 
 In `small`, `understand` replaces the separate plan: your approval there is what allows code to be written.
+
+**Whose PR.** For `/work <repo> pr <n>`, Bureau compares the PR's author with your `gh` login (`gh api user`). Your own same-repo PR gets `pr-review`, which can commit to and push its branch. Anything else (a teammate's PR, or any PR from a fork) gets `peer-review`, which only reads the PR and posts one review after you approve the drafted comments. To change a teammate's same-repo branch anyway, name `pr-review` when you start the card; forks stay review-only, because Bureau cannot push to them.
 
 **Docs step.** In `bugfix`, `task` and `pr-review`, a `docs` step (persona `journalist`) follows the code step: it updates the README, docs and instruction files the change makes stale and commits, or writes `Docs: none needed, <reason>` in `docs.md`. It writes code but has no gate of its own: it runs only after the code step is approved, and its commits are in the branch you approve at the `pr` gate (in `pr-review`, `reply.md` lists them before `reply` pushes). The review step ranks a stale doc as a finding. `desk.py` refuses a step list where a code step with no gate has no gated step after it. `small` keeps docs inside `build` (a docs-only change skips it). No hook checks it.
 
@@ -187,7 +190,7 @@ desk/SHOP-42/
   worktrees/shop/    the git worktree where code is written, on branch bureau/SHOP-42
 ```
 
-**Division of labour.** The tracker owns *what the work is*. The desk owns *where the run is*. Bureau writes to the tracker (comments, status, new issues) and opens PRs only after you approve (`/approve` on the `pr` step runs `scripts/pr.py`; on the `reply` step of `pr-review`, `scripts/reply.py` posts the replies). PRs are drafts. Merging is always yours.
+**Division of labour.** The tracker owns *what the work is*. The desk owns *where the run is*. Bureau writes to the tracker (comments, status, new issues) and opens PRs only after you approve (`/approve` on the `pr` step runs `scripts/pr.py`; on the `reply` step of `pr-review`, `scripts/reply.py` posts the replies; on the `review-comments` step of `peer-review`, `scripts/post_review.py` posts the review). PRs are drafts. Merging is always yours.
 
 ## What is enforced, and what is not
 
@@ -205,7 +208,7 @@ If any of those files change, the hash no longer matches and the rules must be l
 
 **3. One session per card.** The same hook (`hooks/gate.py`) denies any edit or non-read-only Bash command on a card that another live session owns, or that has no live owner (run `/work <id>` to take over). See *Card ownership* above.
 
-**After the last step.** When a card is `done`, the gate denies every code edit in the worktree ("Card is done: no more code changes"). The PR is opened by `scripts/pr.py`, which `/approve` on the `pr` step runs. It pushes the branch without force, opens a draft PR, and refuses a worktree with uncommitted changes, so commit during the code step. In `pr-review`, `/approve` on `reply` runs `scripts/reply.py` instead: it pushes the PR's branch (no force) and posts `reply.json`.
+**After the last step.** When a card is `done`, the gate denies every code edit in the worktree ("Card is done: no more code changes"). The PR is opened by `scripts/pr.py`, which `/approve` on the `pr` step runs. It pushes the branch without force, opens a draft PR, and refuses a worktree with uncommitted changes, so commit during the code step. In `pr-review`, `/approve` on `reply` runs `scripts/reply.py` instead: it pushes the PR's branch (no force) and posts `reply.json`. In `peer-review`, `/approve` on `review-comments` runs `scripts/post_review.py`: it refuses if the PR's head moved since the draft, then posts `review-comments.json` as one review and records its link.
 
 **A follow-up that needs the PR number.** Some repos want an entry (a changelog fragment) named after the PR number, which exists only once `pr` is approved. The gate does not make an exception for that. Add a gated code step after `pr` (`steps/followup.md`): `desk.py add desk/<card> pr '{"id":"followup","gate":"approve","persona":"staff-engineer","writes_code":true}'`. After `/approve` on `pr`, the card moves to `followup` instead of `done`; the agent reads the PR link from `pr.md`, makes the change, commits and pushes (no force), and you `/approve` once more. `pr.py` pushes only once, so the step pushes itself. Without that step, such an edit is yours to make after the PR opens.
 
@@ -324,6 +327,7 @@ A child is merged when `gh pr view` says so for the PR link in its `pr.md`; the 
 | `scripts/workflow.py` | Parses workflows: `list steps show start` |
 | `scripts/worktree.py` | Creates a card's worktree from `repos.yaml`; `--branch <name>` checks out an existing remote branch (a PR's head) |
 | `scripts/reply.py` | For `pr-review`: pushes the PR branch (no force) and posts the replies in `reply.json`; never resolves threads |
+| `scripts/post_review.py` | For `peer-review`: checks the PR head is unchanged, posts `review-comments.json` as one GitHub review; never pushes, never resolves threads |
 | `scripts/pr.py` | Pushes the branch, opens the draft PR from `pr.md`, appends the link to it |
 | `scripts/archive.py` | Moves a `done` card to `desk/.archive/` and removes its worktrees; refuses dirty or unpushed ones unless `--force`; a parent card also needs every child done |
 | `scripts/project.py` | For `project`: `spawn` creates the child cards from `tasks.md`, `status` shows ready, waiting or merged |

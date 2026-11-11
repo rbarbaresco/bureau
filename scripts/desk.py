@@ -123,7 +123,8 @@ def finish(card_dir):
 
 
 SIDE_EFFECTS = {"pr": "pushes the branch and opens a draft PR, then ",
-                "reply": "pushes the branch and posts reply.json, then "}  # what approve.py runs before advancing
+                "reply": "pushes the branch and posts reply.json, then ",
+                "review-comments": "posts the review in review-comments.json, then "}  # what approve.py runs before advancing
 
 
 def _row(label, text):
@@ -201,7 +202,7 @@ def _block(card_dir, state):
                 + _row("Go back:", '"go back to <step>" -> reopens an earlier step')).rstrip("\n")
     if cur == "done":
         ids = _ids(state)
-        needed = "merge the draft PR (yours)" if "pr" in ids else "nothing; the PR's author merges" if "reply" in ids else "nothing"
+        needed = "merge the draft PR (yours)" if "pr" in ids else "nothing; the PR's author merges" if {"reply", "review-comments"} & set(ids) else "nothing"
         return f"Next\n{where}{_row('Run:', 'none')}{_row('Needed:', needed)}".rstrip("\n")
     return f"Next\n{where}{_row('Run:', f'none (continuing with {cur})')}".rstrip("\n")
 
@@ -353,6 +354,13 @@ def doctor(card_dir, repos):
         if left:
             out.append(f"done, but {len(left)} of {len(replies)} replies were never posted. "
                        f"Fix: python3 scripts/reply.py {card_dir}")
+        try:
+            with open(os.path.join(card_dir, "review-comments.json")) as f:
+                draft = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            draft = None
+        if isinstance(draft, dict) and not draft.get("posted"):
+            out.append(f"done, but the review in review-comments.json was never posted. Fix: python3 scripts/post_review.py {card_dir}")
     root = os.path.join(card_dir, "worktrees")
     for repo in sorted(os.listdir(root)) if os.path.isdir(root) else []:
         wt = os.path.join(root, repo)

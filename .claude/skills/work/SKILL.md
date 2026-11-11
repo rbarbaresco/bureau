@@ -15,7 +15,7 @@ Paths below are relative to the Bureau root. Never run steps the human did not c
 - A `desk/<card-id>/` folder with `card.md` but no `state.json` means intake is done and no workflow was confirmed yet: go to step 3.
 - Otherwise fetch the card and write `desk/<card-id>/card.md` with the Write tool (a hook claims the card on that write) (title, source link, description, acceptance criteria if any, comments that matter):
   - GitHub: `gh issue view <ref> --json title,body,labels,url,comments`. Card id: `<repo>-<number>`.
-  - GitHub PR (`<repo> pr <n>`, a `/pull/<n>` URL, or `owner/repo#n` that `gh pr view` resolves): `gh pr view <ref> --json title,body,url,headRefName,isCrossRepository,reviews,comments`. Card id `<repo>-<n>`; if that id exists in `desk/` or `desk/.archive/`, use `pr-review-<repo>-<n>`. Propose the `pr-review` workflow in §3.
+  - GitHub PR (`<repo> pr <n>`, a `/pull/<n>` URL, or `owner/repo#n` that `gh pr view` resolves): `gh pr view <ref> --json title,body,url,author,headRefName,isCrossRepository,reviews,comments`. Card id `<repo>-<n>`; if that id exists in `desk/` or `desk/.archive/`, use `pr-review-<repo>-<n>`. Compare `author.login` with `gh api user -q .login` and record both in `card.md`. Yours and `isCrossRepository` false: propose `pr-review` in §3. Anything else (someone else's PR, or any fork, since Bureau cannot push to one): propose `peer-review`, which never commits or pushes. To change a teammate's same-repo branch anyway, the user names `pr-review`.
   - Jira: `acli jira workitem view <KEY> --json`. Card id: the key.
   - Sentry (no CLI installed): use a Sentry tool if one is connected; otherwise ask the user to paste the issue.
   - Pasted text: save as given. Use the id the user gave, else make a short kebab-case slug from the title (the user can rename it); do not ask. `done` is reserved (`/approve done`), never a card id.
@@ -67,9 +67,9 @@ For the current step in `state.json`:
 6. Human outcomes at a gate: `/approve` → the approve skill advances (on a `loop` step it approves the round and the step stays current; `/approve done` ends the loop). Feedback → `python3 scripts/desk.py revise desk/<card-id> '<feedback>'`
    and redo the step. "Go back to X" → `desk.py reject desk/<card-id> <step> '<reason>'`.
    Add or skip steps on request: `desk.py add desk/<card-id> <after-step> '<step-json>'`, `desk.py skip desk/<card-id> <step>`.
-7. When `current` is `done`: summarize what was delivered and where (worktree paths, branches, PR link from `pr.md`, or for a `reply` card the replies posted). If `pr.md` exists with no `## Opened` section, the PR was not opened: run `python3 scripts/pr.py desk/<card-id>` (it works on a done card). If `reply.json` has entries without `"posted": true`, run `python3 scripts/reply.py desk/<card-id>` instead.
+7. When `current` is `done`: summarize what was delivered and where (worktree paths, branches, PR link from `pr.md`, for a `reply` card the replies posted, or for a `review-comments` card the review link in `review-comments.json`). If `pr.md` exists with no `## Opened` section, the PR was not opened: run `python3 scripts/pr.py desk/<card-id>` (it works on a done card). If `reply.json` has entries without `"posted": true`, run `python3 scripts/reply.py desk/<card-id>` instead; if `review-comments.json` has no `posted`, run `python3 scripts/post_review.py desk/<card-id>`.
 
-Resume: if `awaiting` is set and `approvals.json` has it, run `desk.py advance` (for `pr`, run `python3 scripts/pr.py desk/<card-id>` first; for `reply`, run `python3 scripts/reply.py desk/<card-id>` first); if not approved, show the artifact and end with the block `python3 scripts/desk.py next desk/<card-id>` prints.
+Resume: if `awaiting` is set and `approvals.json` has it, run `desk.py advance` (for `pr`, run `python3 scripts/pr.py desk/<card-id>` first; for `reply`, run `python3 scripts/reply.py desk/<card-id>` first; for `review-comments`, run `python3 scripts/post_review.py desk/<card-id>` first); if not approved, show the artifact and end with the block `python3 scripts/desk.py next desk/<card-id>` prints.
 
 ## Next block
 
@@ -89,6 +89,6 @@ labels when there are any. A failed or blocked state names the exact command, or
 
 ## Rules
 
-- Tracker writes (comments, status changes, creating issues) need the human's explicit approval first. Opening a PR is approved by `/approve` on the `pr` step (no second confirmation); `scripts/pr.py` opens it as a draft. Posting replies on an existing PR is approved by `/approve` on the `reply` step; `scripts/reply.py` pushes and posts. Merging is the human's.
+- Tracker writes (comments, status changes, creating issues) need the human's explicit approval first. Opening a PR is approved by `/approve` on the `pr` step (no second confirmation); `scripts/pr.py` opens it as a draft. Posting replies on an existing PR is approved by `/approve` on the `reply` step; `scripts/reply.py` pushes and posts. Posting a review on a PR you review (`peer-review`) is approved by `/approve` on the `review-comments` step; `scripts/post_review.py` posts it, never pushes. Merging is the human's.
 - Status updates in tracker comments are summaries, not logs.
 - End each reply with where work landed: Bureau path, card folder, worktree and branch, committed or not.
