@@ -16,6 +16,14 @@ import tempfile
 BEFORE_CHARS = 1500  # shortcut: keeps the head of a long draft only; raise it if corrections cite its end
 NOT_TYPED = ("<", "Another Claude session", "[Request interrupted")  # tags (commands, hooks, bash), relayed and system lines
 PASTED = re.compile(r"<pasted_content\b.*?</pasted_content>", re.S)
+ARGS = re.compile(r"<command-args>(.*?)</command-args>", re.S)  # what the user typed after a slash command
+
+
+def _mtime(path):
+    try:
+        return os.path.getmtime(path)
+    except OSError:
+        return 0  # vanished or a dangling link: sorted last, then skipped on open
 
 
 def _text(content):
@@ -30,28 +38,47 @@ def _text(content):
 def extract(config_dir, sessions=50, exclude=()):
     files = [f for f in glob.glob(os.path.join(config_dir, "projects", "*", "*.jsonl"))
              if not any(x in os.path.basename(os.path.dirname(f)) for x in exclude)]
-    files.sort(key=os.path.getmtime, reverse=True)
+    files.sort(key=_mtime, reverse=True)
     samples = []
     for path in files[:sessions]:
-        session = os.path.relpath(path, os.path.join(config_dir, "projects"))[:-len(".jsonl")]
-        before = ""
-        with open(path, errors="replace") as f:
-            for line in f:
-                try:
-                    rec = json.loads(line)
-                    msg = rec.get("message")
-                except (ValueError, AttributeError):
-                    continue
-                if not isinstance(msg, dict):
-                    continue
-                if rec.get("type") == "assistant":
-                    before = _text(msg.get("content")).strip() or before  # a tool-only turn keeps the last text
-                elif rec.get("type") == "user" and isinstance(msg.get("content"), str) \
-                        and not rec.get("isMeta") and not rec.get("isCompactSummary"):
-                    typed = PASTED.sub("[pasted]", msg["content"]).strip()
-                    if typed and not typed.startswith(NOT_TYPED):
-                        samples.append({"session": session, "before": before[:BEFORE_CHARS], "user": typed})
+        try:
+            samples += _read(path, os.path.relpath(path, os.path.join(config_dir, "projects"))[:-len(".jsonl")])
+        except OSError:
+            continue  # unreadable, or deleted since the glob
     return samples
+
+
+def _typed(rec, msg):
+    """The text the operator typed in this user record, or None for anything they did not type."""
+    origin = rec.get("origin")
+    if not isinstance(msg.get("content"), str) or rec.get("isMeta") or rec.get("isCompactSummary") \
+            or rec.get("entrypoint") == "sdk-cli" or (isinstance(origin, dict) and origin.get("kind") != "human"):
+        return None  # scripted (sdk-cli) runs, and relayed, notification or injected lines
+    text = PASTED.sub("[pasted]", msg["content"]).strip()
+    args = ARGS.search(text)
+    if args:
+        text = args.group(1).strip()
+    return text if text and not text.startswith(NOT_TYPED) else None
+
+
+def _read(path, session):
+    out, before = [], ""
+    with open(path, errors="replace") as f:
+        for line in f:
+            try:
+                rec = json.loads(line)
+                msg = rec.get("message")
+            except (ValueError, AttributeError):
+                continue
+            if not isinstance(msg, dict):
+                continue
+            if rec.get("type") == "assistant":
+                before = _text(msg.get("content")).strip() or before  # a tool-only turn keeps the last text
+            elif rec.get("type") == "user":
+                typed = _typed(rec, msg)
+                if typed:
+                    out.append({"session": session, "before": before[:BEFORE_CHARS], "user": typed})
+    return out
 
 
 def main():
@@ -62,7 +89,10 @@ def main():
     a = p.parse_args()
     config = os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude")
     samples = extract(config, a.sessions, a.exclude)
-    out = a.out or tempfile.mkstemp(prefix="voice-samples-", suffix=".md")[1]
+    out = a.out
+    if not out:
+        fd, out = tempfile.mkstemp(prefix="voice-samples-", suffix=".md")
+        os.close(fd)
     with open(out, "w") as f:
         for s in samples:
             quoted = "\n".join("> " + l for l in s["before"].splitlines()) or "> (none)"
