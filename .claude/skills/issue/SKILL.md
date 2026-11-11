@@ -14,6 +14,7 @@ An issue is a work artifact: one reader who has the context, picking it up later
    - Expected, To verify or Question: the outcome wanted, not a design. If the user has a design, give it one line and name the open choice.
    - Skip proposal tables, acceptance-criteria lists and scope sections unless the user asks. Evidence (commands, logs, long lists) goes in a first comment, with one pointer from the body.
    - Say plainly when something is unknown or unverified, rather than inventing a cause.
+   - If `voice.md` exists at the Bureau root, write in that voice (see `/tune-voice`); this template still sets the structure.
 4. **Show the draft** with the title, label and target repo, and **wait**. Creating an issue is a tracker write, so it needs the user's explicit go-ahead.
 5. **File it** after approval: write the body to the scratchpad and run `gh issue create --repo <repo> --title '<title>' --label <label> --body-file <file>`. Give back the URL.
 

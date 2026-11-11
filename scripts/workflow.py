@@ -16,6 +16,7 @@ File format (workflows/<name>.md):
     gate: none | approve | approve+check
     writes_code: true            (optional)
     loop: true                   (optional, gated steps: /approve approves a round, /approve done ends it)
+    voice: operator              (optional, steps that draft text for other people: apply voice.md, see /tune-voice)
 
     Free-text instructions for the step.
 
@@ -29,7 +30,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import desk
 
 BUREAU = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-KEYS = ("persona", "gate", "writes_code", "loop", "reads", "writes")
+KEYS = ("persona", "gate", "writes_code", "loop", "voice", "reads", "writes")
 
 
 def parse(path):
@@ -85,10 +86,10 @@ if __name__ == "__main__":
                     print(f"{w['name']}: {w['use_when']}")
         elif a[:1] == ["show"] and len(a) == 2:
             steps = parse(resolve(a[1]))["steps"]
-            print("| step | persona | gate | writes code |\n|---|---|---|---|")  # /work pastes this table unchanged
+            print("| step | persona | voice | gate | writes code |\n|---|---|---|---|---|")  # /work pastes this table unchanged
             for s in steps:
                 gate = s["gate"] + (" (loop)" if s["loop"] else "")
-                print(f"| {s['id']} | {s.get('persona', '-')} | {gate} | {'yes' if s['writes_code'] else ''} |")
+                print(f"| {s['id']} | {s.get('persona', '-')} | {s.get('voice', '')} | {gate} | {'yes' if s['writes_code'] else ''} |")
             try:  # a catalogue step alone may fail this; a workflow that does is refused by start
                 desk.validate_steps(steps, run=True)
             except ValueError as e:

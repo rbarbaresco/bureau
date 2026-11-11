@@ -14,6 +14,7 @@ End the artifact with `## Open questions`: one numbered item per question, writt
 ## review-comments
 persona: staff-engineer
 gate: approve
+voice: operator
 
 Turn the findings the human approved in review.md into one review. Write review-comments.json:
 `{"repo": "<owner>/<repo>", "number": <n>, "commit_id": "<headRefOid>", "event": "COMMENT", "body": "...", "comments": [{"path": "a.py", "line": 12, "body": "..."}]}`.

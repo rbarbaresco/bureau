@@ -2,8 +2,8 @@
 """Make a checkout of a Bureau branch, PR or commit to run real tickets on before it is merged.
 
 Usage: trial.py <branch|pr-number|commit> [dir]
-Creates a detached worktree (default: ../bureau-trial-<ref> next to this checkout) and links its desk/ and
-repos.yaml to this checkout's, so cards, config and claims are the real ones. Start Claude Code in <dir>.
+Creates a detached worktree (default: ../bureau-trial-<ref> next to this checkout) and links its desk/,
+repos.yaml and voice.md to this checkout's, so cards, config and claims are the real ones. Start Claude Code in <dir>.
 Remove it with: git worktree remove <dir>
 """
 import os
@@ -39,7 +39,7 @@ def add(ref, bureau=BUREAU, dest=None):
     if r.returncode:
         sys.exit(r.stderr.strip())
     shutil.rmtree(os.path.join(dest, "desk"), ignore_errors=True)  # the branch tracks only desk/.gitkeep
-    for name in ("desk", "repos.yaml"):
+    for name in ("desk", "repos.yaml", "voice.md"):  # voice.md may not exist yet; the link still finds it once written
         os.symlink(os.path.realpath(os.path.join(real, name)),  # from a trial: the real file, not its link
                    os.path.join(dest, name))
     return dest

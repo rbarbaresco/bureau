@@ -32,7 +32,7 @@ class TrialTest(unittest.TestCase):
         self.assertEqual(dest, os.path.join(self.tmp, "bureau-trial-bureau-x"))
         head = subprocess.run(["git", "-C", dest, "symbolic-ref", "-q", "HEAD"], capture_output=True)
         self.assertNotEqual(head.returncode, 0)  # detached
-        for name in ("desk", "repos.yaml"):
+        for name in ("desk", "repos.yaml", "voice.md"):  # voice.md may not exist yet: the link still points at the real one
             self.assertEqual(os.path.realpath(os.path.join(dest, name)), os.path.realpath(os.path.join(self.main, name)))
 
     def test_trial_made_from_a_trial_links_to_the_real_desk(self):

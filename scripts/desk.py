@@ -14,7 +14,7 @@ finish, advance and next print the human's Next block (state, command to run, wh
 advance: moves on once the awaiting step is approved (approvals.json is written only by the hook).
 doctor: one line per problem on a card (every active card if none given), each naming its fix; exits 1 if any
 is left. Its only write is relinking worktrees whose paths moved (git worktree repair, idempotent).
-A step is {"id", "gate": none|approve|approve+check, "persona"?, "writes_code"?, "loop"?}.
+A step is {"id", "gate": none|approve|approve+check, "persona"?, "voice"?, "writes_code"?, "loop"?}.
 loop: a gated step that repeats. /approve approves a round (artifact kept as <step>.round-N.md, step stays current);
 /approve done (recorded as "done") approves the last round and advances.
 """
@@ -27,6 +27,7 @@ import sys
 import worktree
 
 GATES = ("none", "approve", "approve+check")
+VOICES = ("operator",)  # operator -> voice.md at the Bureau root, written by /tune-voice
 
 
 def validate_steps(steps, run=False):
@@ -39,6 +40,8 @@ def validate_steps(steps, run=False):
             raise ValueError(f"step needs a string id: {s!r}")
         if s.get("gate", "none") not in GATES:
             raise ValueError(f"step '{s['id']}': gate must be one of {GATES}")
+        if s.get("voice") not in (None,) + VOICES:
+            raise ValueError(f"step '{s['id']}': voice must be one of {VOICES}")
         if s.get("loop") and s.get("gate", "none") == "none":
             raise ValueError(f"step '{s['id']}': a loop needs a gate")
         ids.append(s["id"])
@@ -168,7 +171,8 @@ def _starts(state, step_id):
     if nxt == "done":
         return "the run ends"
     s = state["steps"][_ids(state).index(nxt)]
-    return f"{nxt} starts ({s.get('persona', '-')}, gate {s.get('gate', 'none')})"
+    voice = f"voice {s['voice']}, " if s.get("voice") else ""
+    return f"{nxt} starts ({s.get('persona', '-')}, {voice}gate {s.get('gate', 'none')})"
 
 
 def next_block(card_dir, state):

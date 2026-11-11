@@ -28,6 +28,28 @@ class WorkflowTest(unittest.TestCase):
             self.assertTrue(any(s["gate"] == "approve" for s in before), name)
             self.assertTrue(all(s["instructions"] for s in wf["steps"]))
 
+    def test_voice_field_parses_validates_and_reaches_state(self):
+        d = tempfile.mkdtemp()
+        path = os.path.join(d, "w.md")
+        with open(path, "w") as f:
+            f.write("---\nname: w\nuse_when: x\n---\n## pr\npersona: staff-engineer\ngate: approve\nvoice: operator\n\nDraft.\n")
+        self.assertEqual(workflow.parse(path)["steps"][0]["voice"], "operator")
+        workflow.start(path, os.path.join(d, "card"))
+        self.assertEqual(desk.load(os.path.join(d, "card"))["steps"][0]["voice"], "operator")
+        with open(path, "w") as f:
+            f.write("---\nname: w\nuse_when: x\n---\n## pr\nvoice: foo\n\nDraft.\n")
+        with self.assertRaisesRegex(ValueError, "voice"):
+            workflow.parse(path)
+
+    def test_steps_that_draft_for_other_people_carry_the_operator_voice(self):
+        outward = {"pr", "reply", "publish", "review-comments"}
+        for d in ("workflows", "steps"):  # only the positive check, so a private workflow may set a voice anywhere
+            for f in sorted(os.listdir(os.path.join(ROOT, d))):
+                if f.endswith(".md"):
+                    for s in workflow.parse(os.path.join(ROOT, d, f))["steps"]:
+                        if s["id"] in outward:
+                            self.assertEqual(s.get("voice"), "operator", f"{d}/{f}/{s['id']}")
+
     def test_peer_review_never_writes_code_and_posts_behind_a_gate(self):
         wf = workflow.parse(os.path.join(ROOT, "workflows", "peer-review.md"))
         self.assertEqual([s["id"] for s in wf["steps"]], ["review", "review-comments"])
@@ -93,9 +115,12 @@ class WorkflowTest(unittest.TestCase):
         self.assertIn("publish:", out)
         r = subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "workflow.py"), "show",
                             os.path.join(ROOT, "steps", "docs.md")], capture_output=True, text=True, check=True)
-        self.assertIn("| step | persona | gate | writes code |", r.stdout)
-        self.assertIn("| docs | journalist | none | yes |", r.stdout)
+        self.assertIn("| step | persona | voice | gate | writes code |", r.stdout)
+        self.assertIn("| docs | journalist |  | none | yes |", r.stdout)
         self.assertIn("later gated step", r.stderr)  # shown, with the warning a run would refuse on
+        r = subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "workflow.py"), "show",
+                            os.path.join(ROOT, "steps", "pr.md")], capture_output=True, text=True, check=True)
+        self.assertIn("| pr | staff-engineer | operator | approve |  |", r.stdout)
 
 
 if __name__ == "__main__":

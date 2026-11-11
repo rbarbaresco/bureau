@@ -2,4 +2,5 @@
 desk/*
 !desk/.gitkeep
 repos.yaml
+voice.md
 __pycache__/
