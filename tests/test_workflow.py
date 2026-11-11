@@ -93,7 +93,8 @@ class WorkflowTest(unittest.TestCase):
         self.assertIn("publish:", out)
         r = subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "workflow.py"), "show",
                             os.path.join(ROOT, "steps", "docs.md")], capture_output=True, text=True, check=True)
-        self.assertIn("docs none journalist", r.stdout)
+        self.assertIn("| step | persona | gate | writes code |", r.stdout)
+        self.assertIn("| docs | journalist | none | yes |", r.stdout)
         self.assertIn("later gated step", r.stderr)  # shown, with the warning a run would refuse on
 
 

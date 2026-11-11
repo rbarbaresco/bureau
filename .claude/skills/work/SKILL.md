@@ -42,7 +42,7 @@ the card text. Still show the rest of the overview, but do not propose a workflo
   `steps/<id>.md` files you pick and adapt their text to the card. When a workflow fits but misses a step (a `reproduce`, a
   `migration`), offer that catalogue step as an addition. Any gated step can set `loop: true` when each round needs its own
   approval and only the human ends it (a `publish` step is the example); it is not tied to one step.
-- Show the steps with their persona and gate (`python3 scripts/workflow.py show <name|file>`).
+- Show the steps by pasting the table `python3 scripts/workflow.py show <name|file>` prints, unchanged (step, persona, gate, writes code).
   If the repo's rules require an entry that needs the PR number (a changelog fragment), propose a `followup` step after `pr` (`steps/followup.md`).
   The human accepts or edits (add, skip, reorder, change a gate or persona). **Wait for confirmation.**
 - On confirmation: `python3 scripts/workflow.py start <name|desk/<card-id>/workflow.md> desk/<card-id>`.

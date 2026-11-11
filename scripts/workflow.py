@@ -85,8 +85,10 @@ if __name__ == "__main__":
                     print(f"{w['name']}: {w['use_when']}")
         elif a[:1] == ["show"] and len(a) == 2:
             steps = parse(resolve(a[1]))["steps"]
+            print("| step | persona | gate | writes code |\n|---|---|---|---|")  # /work pastes this table unchanged
             for s in steps:
-                print(s["id"], s["gate"], s.get("persona", "-"), "writes_code" if s["writes_code"] else "", "loop" if s["loop"] else "")
+                gate = s["gate"] + (" (loop)" if s["loop"] else "")
+                print(f"| {s['id']} | {s.get('persona', '-')} | {gate} | {'yes' if s['writes_code'] else ''} |")
             try:  # a catalogue step alone may fail this; a workflow that does is refused by start
                 desk.validate_steps(steps, run=True)
             except ValueError as e:
