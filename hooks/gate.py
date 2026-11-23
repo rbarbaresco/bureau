@@ -134,7 +134,8 @@ def check(card, repo, session, cmd=None):
     ids = [s["id"] for s in steps]
     approved = load(os.path.join(card, "approvals.json"))
     if current == "done":
-        deny("Card is done: no more code changes. Open the PR with scripts/pr.py (pr-review cards: scripts/reply.py; peer-review: scripts/post_review.py).")
+        deny(script_hint(cmd) or "Card is done: no more code changes. Open the PR with scripts/pr.py "
+             "(pr-review cards: scripts/reply.py; peer-review: scripts/post_review.py).")
     if not os.path.exists(os.path.join(card, "state.json")):
         deny(f"{card} has no workflow yet (intake is not finished). Confirm a workflow with the user, then run: "
              f"python3 {rules.BUREAU}/scripts/workflow.py start <name> {card}")
@@ -145,7 +146,7 @@ def check(card, repo, session, cmd=None):
     if not steps[idx].get("writes_code"):
         if cmd is not None and test_allowed(cmd, repo):
             return
-        deny(f"Step '{current}' does not write code. Move to a build step first.")
+        deny(script_hint(cmd) or f"Step '{current}' does not write code. Move to a build step first.")
     for s in steps[:idx]:
         if s.get("gate", "none") != "none" and not approved.get(s["id"]):
             deny(f"Gate '{s['id']}' is not approved. Ask the user to run /approve before any code is written.")
@@ -159,8 +160,9 @@ def check(card, repo, session, cmd=None):
         deny(f"Repo rules for '{repo}' are not loaded or changed. Run: python3 {rules.BUREAU}/hooks/rules.py {wt}")
 
 
+CD = r"(?:[ \t]*cd[ \t]+(?P<dir>/[\w./-]*)[ \t]*&&)?"  # one literal absolute `cd` first: paths resolve from there
 DESK = re.compile(  # bare words and single-quoted text only: nothing for bash to expand, split or comment out
-    r"[ \t]*python3?[ \t]+(?P<script>[\w./][\w./-]*)[ \t]+(?P<sub>init|list|doctor|finish|advance|revise|reject|add|skip|next)"
+    CD + r"[ \t]*python3?[ \t]+(?P<script>[\w./][\w./-]*)[ \t]+(?P<sub>init|list|doctor|finish|advance|revise|reject|add|skip|next)"
     r"(?:[ \t]+(?P<card>[\w./-]+)(?:[ \t]+(?:'[^']*'|[\w.-]+))*)?[ \t]*")
 DESK_READS = ("list", "next")  # print card state, change nothing: read-only in a chain and on any session's card
 
@@ -171,10 +173,37 @@ def desk_state(cmd, cwd):
     m = DESK.fullmatch(cmd)
     if not m:
         return None
-    if os.path.realpath(os.path.join(cwd, m["script"])) != os.path.join(os.path.realpath(rules.BUREAU), "scripts", "desk.py"):
+    base = m["dir"] or cwd
+    if os.path.realpath(os.path.join(base, m["script"])) != os.path.join(os.path.realpath(rules.BUREAU), "scripts", "desk.py"):
         return None
-    card = os.path.realpath(os.path.join(cwd, m["card"] or ""))
+    card = os.path.realpath(os.path.join(base, m["card"] or ""))
     return None if WT.match(card + "/") else (m["sub"], card)
+
+
+OWN = ("pr.py", "reply.py", "archive.py", "post_review.py")
+OWN_RUN = re.compile(CD + r"[ \t]*python3?[ \t]+(?P<script>[\w./][\w./-]*)[ \t]+(?P<card>[\w./-]+)(?:[ \t]+--force)?[ \t]*")
+OWN_NAME = re.compile(r"scripts/(desk|pr|reply|archive|post_review)\.py\b")
+
+
+def own_script(cmd, cwd):
+    """One run of Bureau's own pr/reply/archive/post_review.py (by real path) on a card outside any worktree. Each checks
+    its own step and approval, so the shell's worktree is not a target (#86, #74). Returns the card dir, or None."""
+    m = OWN_RUN.fullmatch(cmd)
+    if not m:
+        return None
+    base = m["dir"] or cwd
+    scripts = os.path.join(os.path.realpath(rules.BUREAU), "scripts")
+    if os.path.realpath(os.path.join(base, m["script"])) not in [os.path.join(scripts, n) for n in OWN]:
+        return None
+    card = os.path.realpath(os.path.join(base, m["card"]))
+    return None if WT.match(card + "/") else card
+
+
+def script_hint(cmd):
+    """A Bureau script named from a worktree resolves to the worktree's copy (or none): say how to run Bureau's."""
+    m = cmd and OWN_NAME.search(cmd)
+    return m and (f"Bureau's own scripts run from Bureau's checkout, not this worktree: "
+                  f"python3 {rules.BUREAU}/scripts/{m[1]}.py <args>, or cd {rules.BUREAU} first.")
 
 
 NEW = re.compile(  # the whole command, bare words and single-quoted text only: a mention in echo/grep/git is not a start
@@ -263,6 +292,10 @@ def main():
             owner(card, session)
         if "approvals.json" in cmd or "sessions.jsonl" in cmd:
             deny("approvals.json is written only by the /approve hook; sessions.jsonl only by the session hooks.")
+        own = own_script(cmd, cwd)
+        if own:  # after a cd, a relative card is not among named_cards
+            owner(own, session)
+            return
         for card, repo in sorted(bash_targets(cmd, cwd)):
             check(card, repo, session, cmd)
 

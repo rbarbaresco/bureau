@@ -272,6 +272,31 @@ class GateTest(unittest.TestCase):
         write(other, "")
         self.assertIsNotNone(run(f"python3 {other} finish {self.card}"))
 
+    def test_own_scripts_allowed_from_worktree_cwd(self):
+        run = lambda c: self.run_gate("Bash", cwd=self.wt, command=c)
+        rel = os.path.relpath(self.card, self.tmp)  # desk/ABC-1, for a cd into tmp
+        for current in ("plan", "done"):  # a step that writes no code, and a finished card
+            self.state({"current": current, "steps": STEPS})
+            for script in ("pr.py", "reply.py", "post_review.py", "archive.py --force"):
+                name, _, flag = script.partition(" ")
+                self.assertIsNone(run(f"python3 {LINK}/scripts/{name} {self.card} {flag}"), script)
+            self.assertIsNone(run(f"cd {LINK} && python3 scripts/pr.py {self.card}"))
+            self.assertIsNone(run(f"cd {LINK} && python3 scripts/desk.py advance {self.card}"))
+            self.assertIsNone(run(f"cd {self.tmp} && python3 {LINK}/scripts/pr.py {rel}"))  # card resolved after the cd
+        pr = f"python3 {LINK}/scripts/pr.py {self.card}"
+        self.assertIsNotNone(run(f"{pr}; touch {self.wt}/x"))
+        self.assertIsNotNone(run(f"{pr} > {self.wt}/x"))
+        self.assertIsNotNone(run(f'{pr} "$(touch {self.wt}/x)"'))
+        self.assertIsNotNone(run(f"{pr} {self.wt}"))  # second argument
+        self.assertIsNotNone(run(f"python3 {LINK}/scripts/pr.py {self.wt}"))  # card argument inside the worktree
+        self.assertIsNotNone(run(f"cd $B && python3 scripts/pr.py {self.card}"))
+        self.assertIsNotNone(run(f"cd {self.wt} && python3 {LINK}/scripts/pr.py ."))
+        write(os.path.join(self.wt, "scripts", "pr.py"), "")  # a bureau card's worktree has its own copy
+        self.assertIn(f"{rules.BUREAU}/scripts/pr.py", run(f"python3 scripts/pr.py {self.card}"))
+        self.assertIn("Bureau's own scripts", run(f"cd {self.wt} && python3 scripts/desk.py advance {self.card}"))
+        sessions.append(self.card, "claim", "s1", 999999)  # a dead owner: the card must be taken over first
+        self.assertIn("no live owner", run(pr))
+
     def test_rules_loader_runs_before_ack(self):
         cmd = f"python3 {LINK}/hooks/rules.py {self.wt}"
         self.assertIsNone(self.run_gate("Bash", command=cmd))

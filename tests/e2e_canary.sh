@@ -14,7 +14,7 @@ fail() { echo "FAIL: $*" >&2; exit 1; }
 
 # Bureau copy (hooks + settings + skills + base rules)
 B="$T/bureau"; mkdir -p "$B"
-cp -r "$SRC/hooks" "$SRC/.claude" "$SRC/AGENTS.md" "$B/"
+cp -r "$SRC/hooks" "$SRC/scripts" "$SRC/.claude" "$SRC/AGENTS.md" "$B/"
 mkdir -p "$B/desk"
 
 # ancestor rule + repo rule
