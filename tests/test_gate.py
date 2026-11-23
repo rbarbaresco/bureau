@@ -283,17 +283,29 @@ class GateTest(unittest.TestCase):
             self.assertIsNone(run(f"cd {LINK} && python3 scripts/pr.py {self.card}"))
             self.assertIsNone(run(f"cd {LINK} && python3 scripts/desk.py advance {self.card}"))
             self.assertIsNone(run(f"cd {self.tmp} && python3 {LINK}/scripts/pr.py {rel}"))  # card resolved after the cd
+        self.state({"current": "plan", "steps": STEPS})  # denials below come from the step, not from a done card
         pr = f"python3 {LINK}/scripts/pr.py {self.card}"
-        self.assertIsNotNone(run(f"{pr}; touch {self.wt}/x"))
-        self.assertIsNotNone(run(f"{pr} > {self.wt}/x"))
-        self.assertIsNotNone(run(f'{pr} "$(touch {self.wt}/x)"'))
-        self.assertIsNotNone(run(f"{pr} {self.wt}"))  # second argument
+        step = "does not write code"
+        self.assertIn(step, run(f"{pr}; touch {self.wt}/x"))
+        self.assertIn(step, run(f"{pr} > {self.wt}/x"))
+        self.assertIn(step, run(f'{pr} "$(touch {self.wt}/x)"'))
+        self.assertIn(step, run(f"{pr} {self.wt}"))  # second argument
         self.assertIsNotNone(run(f"python3 {LINK}/scripts/pr.py {self.wt}"))  # card argument inside the worktree
         self.assertIsNotNone(run(f"cd $B && python3 scripts/pr.py {self.card}"))
         self.assertIsNotNone(run(f"cd {self.wt} && python3 {LINK}/scripts/pr.py ."))
+        # bash's cd drops `..` as text, realpath follows the symlink first: L/.. is lp for bash, the Bureau root for realpath
+        lp = os.path.join(self.tmp, "lp")
+        os.makedirs(lp)
+        os.symlink(os.path.join(ROOT, "hooks"), os.path.join(lp, "L"))
+        self.assertIsNotNone(run(f"cd {lp}/L/.. && python3 scripts/pr.py {self.card}"))
+        self.assertIsNotNone(run(f"cd {LINK}/hooks/.. && python3 scripts/desk.py advance {self.card}"))
+        self.assertIsNotNone(run(f"python3 {LINK}/scripts/pr.py {lp}/L/../../desk/ABC-1"))
         write(os.path.join(self.wt, "scripts", "pr.py"), "")  # a bureau card's worktree has its own copy
-        self.assertIn(f"{rules.BUREAU}/scripts/pr.py", run(f"python3 scripts/pr.py {self.card}"))
-        self.assertIn("Bureau's own scripts", run(f"cd {self.wt} && python3 scripts/desk.py advance {self.card}"))
+        fix = f"cd {rules.BUREAU} && python3 scripts/pr.py desk/<card>"
+        self.assertIn(fix, run(f"python3 scripts/pr.py {self.card}"))
+        self.assertIn(fix, run(f"python3 {LINK}/scripts/pr.py desk/ABC-1"))  # card resolved inside the worktree
+        self.assertIn("scripts/desk.py desk/<card>", run(f"cd {self.wt} && python3 scripts/desk.py advance {self.card}"))
+        self.assertIn(step, run("echo x >> scripts/pr.py"))  # a write that names a script gets no hint
         sessions.append(self.card, "claim", "s1", 999999)  # a dead owner: the card must be taken over first
         self.assertIn("no live owner", run(pr))
 

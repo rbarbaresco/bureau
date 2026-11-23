@@ -173,16 +173,24 @@ def desk_state(cmd, cwd):
     m = DESK.fullmatch(cmd)
     if not m:
         return None
-    base = m["dir"] or cwd
-    if os.path.realpath(os.path.join(base, m["script"])) != os.path.join(os.path.realpath(rules.BUREAU), "scripts", "desk.py"):
+    paths = resolve(m, cwd)
+    if not paths or paths[0] != os.path.join(os.path.realpath(rules.BUREAU), "scripts", "desk.py"):
         return None
-    card = os.path.realpath(os.path.join(base, m["card"] or ""))
-    return None if WT.match(card + "/") else (m["sub"], card)
+    return None if WT.match(paths[1] + "/") else (m["sub"], paths[1])
+
+
+def resolve(m, cwd):
+    """Real paths of a DESK/OWN_RUN match's script and card, or None when the cd folder or card has a `..`:
+    bash's `cd` (and pr.py's abspath) drop `..` as text, realpath follows symlinks first, so they could differ."""
+    if any(".." in (p or "").split("/") for p in (m["dir"], m["card"])):
+        return None
+    base = m["dir"] or cwd
+    return os.path.realpath(os.path.join(base, m["script"])), os.path.realpath(os.path.join(base, m["card"] or ""))
 
 
 OWN = ("pr.py", "reply.py", "archive.py", "post_review.py")
-OWN_RUN = re.compile(CD + r"[ \t]*python3?[ \t]+(?P<script>[\w./][\w./-]*)[ \t]+(?P<card>[\w./-]+)(?:[ \t]+--force)?[ \t]*")
-OWN_NAME = re.compile(r"scripts/(desk|pr|reply|archive|post_review)\.py\b")
+OWN_RUN = re.compile(CD + r"[ \t]*python3?[ \t]+(?P<script>[\w./][\w./-]*)[ \t]+(?P<card>[\w./-]+)"
+                     r"(?:[ \t]+--force)?[ \t]*")  # only archive.py takes --force; the others reject a second argument
 
 
 def own_script(cmd, cwd):
@@ -191,19 +199,20 @@ def own_script(cmd, cwd):
     m = OWN_RUN.fullmatch(cmd)
     if not m:
         return None
-    base = m["dir"] or cwd
+    paths = resolve(m, cwd)
     scripts = os.path.join(os.path.realpath(rules.BUREAU), "scripts")
-    if os.path.realpath(os.path.join(base, m["script"])) not in [os.path.join(scripts, n) for n in OWN]:
+    if not paths or paths[0] not in [os.path.join(scripts, n) for n in OWN]:
         return None
-    card = os.path.realpath(os.path.join(base, m["card"]))
-    return None if WT.match(card + "/") else card
+    return None if WT.match(paths[1] + "/") else paths[1]
 
 
 def script_hint(cmd):
-    """A Bureau script named from a worktree resolves to the worktree's copy (or none): say how to run Bureau's."""
-    m = cmd and OWN_NAME.search(cmd)
-    return m and (f"Bureau's own scripts run from Bureau's checkout, not this worktree: "
-                  f"python3 {rules.BUREAU}/scripts/{m[1]}.py <args>, or cd {rules.BUREAU} first.")
+    """A run of a Bureau script from a worktree resolves paths there (its own copy, or none): give the command that works."""
+    m = cmd and (OWN_RUN.fullmatch(cmd) or DESK.fullmatch(cmd))  # one script call, not a chain or a redirect
+    name = m and os.path.basename(m["script"])
+    return name in (*OWN, "desk.py") and (
+        f"The shell is in a worktree, so this names its copy of scripts/{name} or a card path inside it. "
+        f"Run it as: cd {rules.BUREAU} && python3 scripts/{name} desk/<card> ...")
 
 
 NEW = re.compile(  # the whole command, bare words and single-quoted text only: a mention in echo/grep/git is not a start

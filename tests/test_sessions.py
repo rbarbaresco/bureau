@@ -189,7 +189,8 @@ class SessionsTest(unittest.TestCase):
         self.own("s1", self.claude())
         d, c = f"python3 {LINK}/scripts/desk.py", self.card
         for cmd in (f"{d} finish {c} && true", f'{d} finish "{c}"', f"{d} finish {c}/sub",
-                    f"cd {c} && {d} finish .", f"sed -i s/a/b/ {c}/state.json", f"echo x > {c}/plan.md"):
+                    f"cd {c} && {d} finish .", f"sed -i s/a/b/ {c}/state.json", f"echo x > {c}/plan.md",
+                    f"python3 {LINK}/scripts/pr.py {c}", f"cd {LINK} && python3 scripts/archive.py {c} --force"):
             self.assertIn("held by session s1", self.gate("s2", command=cmd) or "ALLOWED", cmd)
         self.assertIn("held by session s1", self.gate("s2", "Write", file_path=f"{c}/state.json"))
         self.assertIsNone(self.gate("s1", "Write", file_path=f"{c}/state.json"))
