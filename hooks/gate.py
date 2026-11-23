@@ -24,14 +24,15 @@ WT = rules.WT
 ABS_WT = re.compile(r"(\S*?/desk/\S+?)/worktrees/([^/\s\"';|&)]+)")  # a repo name ends at a shell separator
 REL_WT = re.compile(r"worktrees/([^/\s\"';|&)]+)")
 SED_ADDR = r"(\d+|\$|/(?:[^/\\']|\\.)*/)"
+OPERAND = r"\s+['\"]?[\w./~$]\S*"  # a file, never a literal option: not -i, '-i', ''-i or {-i,} ($X: README limits)
 READ_ONLY = re.compile(
     r"^\s*(ls|cat|rg|grep|head|tail|wc|pwd|cd|echo|cut|tr|nl|diff|jq|sort|find|gh\s+pr\s+(view|diff|checks)"
     r"|git\s+(-C\s+\S+\s+)?(status|log|diff|show|grep|rev-parse|ls-files|merge-base|blame|cat-file|fetch|worktree\s+list))\b"
     r"|^\s*git\s+(-C\s+\S+\s+)?branch(\s+(-[arlv]|-vv|--(all|remotes|list|verbose|show-current)"
-    r"|--(contains|merged|no-merged|points-at)(=|\s+)\S+))*\s*$"  # listing only: a name creates a branch
-    rf"|^\s*sed\s+-n\s+(?P<q>['\"]?){SED_ADDR}(,{SED_ADDR})?p(?P=q)(\s+(?!-)\S+)*\s*$"  # print-only script, files after it
-    r"|^\s*awk(\s+-[Fv]\s*\S+)*\s+'(?![^']*(system|getline))[^'>|]*'(\s+(?!-)\S+)*\s*$"  # no output, pipe or command
-    r"|^\s*uniq(\s+-\S+)*(\s+(?!-)\S+)?\s*$"  # a second operand is the output file
+    r"|--(contains|merged|no-merged|points-at)(=|\s+)[\w./~^@]\S*))*\s*$"  # listing only: a name creates a branch
+    rf"|^\s*sed\s+-n\s+('{SED_ADDR}(,{SED_ADDR})?p'|\d+(,\d+)?p)({OPERAND})*\s*$"  # print-only; bash expands a bare $
+    rf"|^\s*awk(\s+-[Fv]\s*\S+)*\s+'(?![^']*(system|getline))[^'>|@]*'({OPERAND})*\s*$"  # no output, pipe, command, @include
+    rf"|^\s*uniq(\s+-[\w-]*\w)*({OPERAND})?\s*$"  # a second operand is the output file
     r"|^\s*[A-Za-z_]\w*=(?:'[^']*'|\"[^\"]*\"|[^\s'\"])*\s*$"  # a lone `X=/path` segment
     r"|^\s*python3?\s+\S*/hooks/rules\.py\b"  # the rules loader must run before any write is allowed
     r"|^\s*python3?\s+\S*/scripts/worktree\.py\b"  # creates the worktree itself
@@ -39,10 +40,11 @@ READ_ONLY = re.compile(
 WRITES = re.compile(  # write options of commands READ_ONLY allows by name
     r"^\s*find\b.*(?<![\w-])-(exec|ok|delete|fprint|fls)"
     r"|^\s*sort\b.*(?<![\w-])(-[a-zA-Z]*o|--[oc])"
-    r"|^\s*git\s+(-C\s+\S+\s+)?fetch\b.*(:|--u|(?<![\w-])-u)"  # a:b updates a local branch; --upload-pack runs a command
+    r"|^\s*git\s+(-C\s+\S+\s+)?fetch\b.*(:|--[us]|(?<![\w-])-u)"  # a:b, --stdin and --set-upstream write; --upload-pack runs
 )
-UNSAFE = re.compile(r"[>`]|\$\(")  # redirects and substitutions can write from a "read-only" command
-QUOTED = re.compile(r"""'[^']*'|"(?:[^"\\]|\\.)*\"""")
+UNSAFE = re.compile(r"[>`]|[$<]\(")  # redirects and substitutions can write from a "read-only" command
+QUOTED = re.compile(  # what bash reads as one inert unit, scanned left to right: \x, $'…', '…', "…", a # comment
+    r"""\\.|\$'(?:[^'\\]|\\.)*'|'[^']*'|"(?:[^"\\]|\\.)*"|(?<![^\s;|&(])#[^\n]*""")
 HARMLESS_REDIRECT = re.compile(r"\d?>\s*/dev/null|\d?>&\d")
 
 
@@ -61,8 +63,8 @@ def reads(seg):
 
 
 def plain(cmd):
-    """Drop what is inert in quotes: single-quoted text, and <> in double quotes ($( and backticks still run there)."""
-    return QUOTED.sub(lambda m: "''" if m[0][0] == "'" else re.sub(r"[<>]", "", m[0]), cmd)
+    """Drop what is inert: quoted, escaped and commented text, but keep "…" bodies ($( and backticks still run there)."""
+    return QUOTED.sub(lambda m: re.sub(r"[<>]", "", m[0]) if m[0][0] == '"' else "''", cmd)
 
 
 def deny(reason):
@@ -141,6 +143,8 @@ def check(card, repo, session, cmd=None):
         if s.get("loop") and approved.get(s["id"]) != "done":  # a round's `true` is not the end of the loop
             deny(f"Loop '{s['id']}' has not ended. Only the user ends it, with /approve done.")
     wt = os.path.join(card, "worktrees", repo)
+    if not os.path.isdir(wt):  # a misparsed name would crash rules.digest, and a crashed hook allows the call
+        deny(f"No worktree at {wt}. Name the worktree path on its own, without quotes or punctuation around it.")
     if load(os.path.join(card, "ack.json")).get(repo) != rules.digest(wt):
         deny(f"Repo rules for '{repo}' are not loaded or changed. Run: python3 {rules.BUREAU}/hooks/rules.py {wt}")
 

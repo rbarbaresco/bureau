@@ -85,6 +85,7 @@ class GateTest(unittest.TestCase):
         self.assertIsNone(self.edit())
         self.assertIsNone(self.run_gate("Bash", command=f"W={self.wt}; touch $W/x"))  # card is not "W=/…"
         self.assertIsNone(self.run_gate("Bash", command=f"git --git-dir={self.wt}/.git commit"))
+        self.assertIn("No worktree", self.run_gate("Bash", command=f"touch {self.wt}}}/x"))  # was a crash, i.e. allowed
 
     def test_stale_ack_after_rule_change(self):
         self.approve("plan")
@@ -180,6 +181,8 @@ class GateTest(unittest.TestCase):
         "git fetch origin", "git fetch origin main", "git merge-base HEAD origin/main", "git blame -L 1,5 app.py",
         "git cat-file -p HEAD", "git worktree list", "gh pr view 1 --json title", "gh pr diff 1", "gh pr checks 1",
         "X=/a/b; sed -n 1,5p $X/app.py", 'X="/a b"; ls "$X"',
+        "ls # it's fine; really", 'grep -n "a\\"b|c" app.py', "grep a\\|b app.py", "sed -n 1p ./app.py 'b c.py'",
+        "uniq -c in", "git branch --merged origin/main",
     ]
     WRITES = [
         "sed -i s/a/b/ app.py", "sed -n 1p -i app.py", "sed -ni 1p app.py", "sed --in-place 1p app.py",
@@ -191,6 +194,13 @@ class GateTest(unittest.TestCase):
         "git branch new", "git branch -D main", "git branch -m a b", "git fetch origin main:main",
         "git fetch --upload-pack=x origin", "ls | tee out", "echo x > app.py", "cat $(touch x)", "cat `touch x`",
         "X=1 touch app.py", "X=/a; touch $X",
+        # QA review of #112: escapes, $'…' and comments must not hide a separator
+        "echo \\'; touch app.py; echo \\'", "ls # it's\ntouch app.py\ngit status # don't",
+        "echo $'\\'' ; touch app.py ; echo 'z'", 'echo \\" ; touch app.py ; echo "x"',
+        "sed -n 1p app.py '-i'", "sed -n 1p app.py ''-i", "sed -n 1p app.py {-i,}", "sed -n $p wiki.md",
+        "uniq -- -in -out", "git branch --contains --set-upstream-to=origin/x", "git branch --contains '--unset-upstream'",
+        "git fetch --set-upstream origin", "git fetch --stdin origin", "awk '@include \"inplace\"\n1' app.py",
+        "cat <(touch x)",
     ]
 
     def test_read_only_table(self):
