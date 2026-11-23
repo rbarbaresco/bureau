@@ -9,11 +9,14 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PR = os.path.join(ROOT, "scripts", "pr.py")
 WORKTREE = os.path.join(ROOT, "scripts", "worktree.py")
 STEPS = [{"id": "build", "gate": "approve", "writes_code": True}, {"id": "pr", "gate": "approve"}]
-# stand-in for `gh`: `pr list` prints $T/list, `pr create` records its args and stdin and prints a URL
+# stand-in for `gh`: `pr list` prints $T/list, `pr create` records its args and stdin and prints a URL;
+# `pr create` first fails $FAILS times with $ERR on stderr, counting every call in $T/n
 FAKE_GH = """#!/bin/sh
 case "$2" in
   list) cat "$T/list" 2>/dev/null || true ;;
-  create) echo "$@" > "$T/args"; cat > "$T/body"; echo https://example.test/pull/7 ;;
+  create) n=$(cat "$T/n" 2>/dev/null || echo 0); echo $((n + 1)) > "$T/n"
+          if [ "$n" -lt "${FAILS:-0}" ]; then echo "$ERR" >&2; exit 1; fi
+          echo "$@" > "$T/args"; cat > "$T/body"; echo https://example.test/pull/7 ;;
 esac
 """
 
@@ -56,8 +59,9 @@ class PrTest(unittest.TestCase):
     def approve(self, **a):
         write(os.path.join(self.card, "approvals.json"), json.dumps(a))
 
-    def run_pr(self):
-        env = {**os.environ, "PATH": self.bin + os.pathsep + os.environ["PATH"], "T": self.tmp, "BUREAU_REPOS": self.repos}
+    def run_pr(self, **extra):
+        env = {**os.environ, "PATH": self.bin + os.pathsep + os.environ["PATH"], "T": self.tmp, "BUREAU_REPOS": self.repos,
+               **extra}
         return subprocess.run([sys.executable, PR, self.card], env=env, capture_output=True, text=True)
 
     def read(self, name):
@@ -105,6 +109,26 @@ class PrTest(unittest.TestCase):
         err = self.run_pr().stderr
         self.assertIn("repos.yaml.sample", err)
         self.assertNotIn("not found in", err)
+
+    def test_transient_error_is_retried_then_succeeds(self):
+        r = self.run_pr(FAILS="2", ERR='Post "https://api.github.com/graphql": dial tcp 1.2.3.4:443: i/o timeout')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.read("n").strip(), "3")
+        self.assertIn("retrying", r.stderr)
+        self.assertIn("## Opened\n\nhttps://example.test/pull/7", open(os.path.join(self.card, "pr.md")).read())
+
+    def test_transient_error_gives_up_after_three_attempts(self):
+        r = self.run_pr(FAILS="3", ERR="HTTP 502: Bad Gateway")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertEqual(self.read("n").strip(), "3")
+        self.assertIn("failed: HTTP 502: Bad Gateway", r.stderr)
+        self.assertNotIn("## Opened", open(os.path.join(self.card, "pr.md")).read())
+
+    def test_other_error_exits_at_once(self):
+        r = self.run_pr(FAILS="1", ERR="HTTP 422: Validation Failed")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertEqual(self.read("n").strip(), "1")
+        self.assertNotIn("retrying", r.stderr)
 
     def test_refused_cases(self):
         self.approve()

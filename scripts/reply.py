@@ -65,9 +65,9 @@ def post_replies(card):
             continue
         if r.get("in_reply_to"):
             run(["gh", "api", f"repos/{repo}/pulls/{number}/comments/{r['in_reply_to']}/replies",
-                 "-f", f"body={r['body']}"], cwd=wt)
+                 "-f", f"body={r['body']}"], creates=True, cwd=wt)
         else:
-            run(["gh", "pr", "comment", number, "--repo", repo, "--body-file", "-"], cwd=wt, input=r["body"])
+            run(["gh", "pr", "comment", number, "--repo", repo, "--body-file", "-"], creates=True, cwd=wt, input=r["body"])
         r["posted"] = True
         posted += 1
         with open(path, "w") as f:  # after each post, so a failure half-way does not repeat the earlier ones

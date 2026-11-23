@@ -61,7 +61,7 @@ def post_review(card):
     payload = {k: draft[k] for k in ("commit_id", "event", "body") if k in draft}
     payload["comments"] = [{k: c[k] for k in COMMENT_KEYS if k in c} for c in draft.get("comments", [])]
     url = run(["gh", "api", f"repos/{repo}/pulls/{number}/reviews", "--method", "POST", "--input", "-",
-               "--jq", ".html_url"], input=json.dumps(payload))
+               "--jq", ".html_url"], creates=True, input=json.dumps(payload))
     draft["posted"] = url
     with open(path, "w") as f:
         json.dump(draft, f, indent=2)

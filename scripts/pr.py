@@ -11,10 +11,14 @@ import os
 import re
 import subprocess
 import sys
+import time
 
 import worktree
 
 OPENED = "\n## Opened\n"
+# network errors worth another try; UNSENT ones failed before the request left, so even a post cannot land twice
+TRANSIENT = re.compile(r"i/o timeout|connection reset|TLS handshake timeout|Could not resolve host|no such host|HTTP 50[23]")
+UNSENT = re.compile(r"dial tcp|Could not resolve host|TLS handshake timeout")
 
 
 def load(path):
@@ -25,11 +29,18 @@ def load(path):
         return {}
 
 
-def run(args, **kw):
-    r = subprocess.run(args, capture_output=True, text=True, **kw)
-    if r.returncode:
-        sys.exit(f"{' '.join(args[:4])} failed: {(r.stderr or r.stdout).strip()}")
-    return r.stdout.strip()
+def run(args, creates=False, **kw):
+    """Run a command, retrying twice on transient network errors. `creates`: the call posts something, so only
+    retry errors raised before the request was sent."""
+    for wait in (1, 2, None):
+        r = subprocess.run(args, capture_output=True, text=True, **kw)
+        if not r.returncode:
+            return r.stdout.strip()
+        err = (r.stderr or r.stdout).strip()
+        if wait is None or not (UNSENT if creates else TRANSIENT).search(err):
+            sys.exit(f"{' '.join(args[:4])} failed: {err}")
+        print(f"{' '.join(args[:4])}: {err.splitlines()[-1]}; retrying in {wait}s", file=sys.stderr)
+        time.sleep(wait)
 
 
 def open_pr(card):
