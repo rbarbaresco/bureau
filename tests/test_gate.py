@@ -138,6 +138,11 @@ class GateTest(unittest.TestCase):
         self.assertIn("approve hook", self.run_gate("Write", file_path=os.path.join(self.card, "approvals.json")))
         self.assertIn("approve hook", self.run_gate("Bash", command=f"echo '{{}}' > {self.card}/approvals.json"))
 
+    def test_agent_cannot_write_bureau_settings(self):
+        self.assertIn("/setup-bureau", self.run_gate("Write", file_path=os.path.join(self.tmp, "bureau.json")))
+        self.assertIn("/setup-bureau", self.run_gate("Bash", command=f"echo '{{}}' > {self.tmp}/bureau.json"))
+        self.assertIsNone(self.run_gate("Bash", command=f"cat {self.tmp}/bureau.json"))
+
     def test_bash_write_denied_read_only_allowed(self):
         self.assertIsNotNone(self.run_gate("Bash", command=f"sed -i s/a/b/ {self.wt}/app.py"))
         self.assertIsNotNone(self.run_gate("Bash", command=f"cat {self.wt}/a > {self.wt}/b"))

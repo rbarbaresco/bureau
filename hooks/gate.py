@@ -243,6 +243,8 @@ def main():
             owner(card_root(os.path.dirname(path)), session)
         if path.endswith("/approvals.json") and "/desk/" in path:
             deny("approvals.json is written only by the /approve hook.")
+        if os.path.basename(path) == "bureau.json":
+            deny("bureau.json holds the human's standing approvals; only their /setup-bureau writes it.")
         if path.endswith("/sessions.jsonl") and "/desk/" in path:
             deny("sessions.jsonl is written only by the session hooks.")
         m = WT.match(path)
@@ -261,6 +263,8 @@ def main():
             return
         for card in sorted(named_cards(cmd, cwd)):  # any other command naming a card (sed -i state.json, && chains, quotes)
             owner(card, session)
+        if re.search(r"(?<![\w.-])bureau\.json", cmd):
+            deny("bureau.json holds the human's standing approvals; only their /setup-bureau writes it.")
         if "approvals.json" in cmd or "sessions.jsonl" in cmd:
             deny("approvals.json is written only by the /approve hook; sessions.jsonl only by the session hooks.")
         for card, repo in sorted(bash_targets(cmd, cwd)):

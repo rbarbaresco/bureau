@@ -37,6 +37,7 @@ persona: qa
 gate: approve
 
 As a read-only subagent, check the diff against the approved list in triage.md and fix.md: missed items, over-applied changes, a commit that answers the wrong comment. Check docs.md: does the diff leave any README, doc or instruction file stale? Rank a miss as a finding. Write review.md with findings ranked by severity.
+Start review.md with `Highest severity: <high|medium|low|nit|none>` for this round: with `/setup-bureau` go-back on, `desk.py finish` reads it and may send the card back to the code step on its own.
 Findings to fix: the human sends the card back to the code step ("Go back"); a clean review is approved as is. Feedback only redoes the review.
 
 ## reply

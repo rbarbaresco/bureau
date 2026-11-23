@@ -3,4 +3,5 @@ desk/*
 !desk/.gitkeep
 repos.yaml
 voice.md
+bureau.json
 __pycache__/

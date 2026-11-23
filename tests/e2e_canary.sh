@@ -3,6 +3,7 @@
 #  A. a code write is refused while the repo rules are not loaded
 #  B. after loading them, rules from the repo AND from an ancestor folder reach the model
 #  C. a raw "/approve" prompt reaches the hook and is recorded
+#  D. a raw "/setup-bureau 1b" writes bureau.json and the questionnaire reaches the model
 # Costs a few model calls. Re-run after any Claude Code upgrade.
 set -euo pipefail
 
@@ -14,7 +15,7 @@ fail() { echo "FAIL: $*" >&2; exit 1; }
 
 # Bureau copy (hooks + settings + skills + base rules)
 B="$T/bureau"; mkdir -p "$B"
-cp -r "$SRC/hooks" "$SRC/.claude" "$SRC/AGENTS.md" "$B/"
+cp -r "$SRC/hooks" "$SRC/scripts" "$SRC/.claude" "$SRC/AGENTS.md" "$SRC/bureau.template.json" "$B/"
 mkdir -p "$B/desk"
 
 # ancestor rule + repo rule
@@ -50,5 +51,10 @@ rm "$C/approvals.json"
 echo '{"awaiting":"plan","current":"plan","steps":[{"id":"plan","gate":"approve"},{"id":"build","gate":"approve","writes_code":true}]}' > "$C/state.json"
 run "/approve E2E" > "$T/c.out" || true
 grep -q '"plan": true' "$C/approvals.json" 2>/dev/null || fail "C: approval not recorded: $(cat "$T/c.out")"
+
+echo "D. raw /setup-bureau reaches the hook"
+run "/setup-bureau 1b" > "$T/d.out" || true
+grep -q '"auto_advance": "on"' "$B/bureau.json" 2>/dev/null || fail "D: setting not saved: $(cat "$T/d.out")"
+grep -q "Suggestion" "$T/d.out" || fail "D: questionnaire not shown: $(cat "$T/d.out")"
 
 echo "OK"
