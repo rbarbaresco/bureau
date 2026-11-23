@@ -232,6 +232,31 @@ class TransitionTest(unittest.TestCase):
         out = desk.next_block(card, desk.finish(card))
         self.assertIn("/approve LOOP-1 done", out)
 
+    def cli(self, *args):
+        return subprocess.run([sys.executable, os.path.join(os.path.dirname(desk.__file__), "desk.py"), *args],
+                              capture_output=True, text=True, check=True).stdout
+
+    def test_cli_revise_names_the_moved_artifact(self):
+        open(os.path.join(self.card, "plan.md"), "w").write("v1")
+        desk.finish(self.card)
+        out = self.cli("revise", self.card, "again")
+        self.assertIn("Previous:  plan.v1.md (kept); write a new plan.md", out)
+        open(os.path.join(self.card, "plan.md"), "w").write("v2")
+        self.assertNotIn("Previous:", self.cli("next", self.card))  # gone once the new artifact exists
+
+    def test_cli_loop_round_names_the_moved_artifact(self):
+        card = self.loop_card()
+        open(os.path.join(card, "rounds.md"), "w").write("round 1")
+        desk.finish(card)
+        self.approve_loop(card, True)
+        self.assertIn("Previous:  rounds.round-1.md (kept); write a new rounds.md", self.cli("advance", card))
+
+    def test_cli_reject_prints_next_block_without_previous(self):
+        open(os.path.join(self.card, "plan.md"), "w").write("v1")
+        out = self.cli("reject", self.card, "plan", "wrong")
+        self.assertIn("continuing with plan", out)
+        self.assertNotIn("Previous:", out)
+
     def test_revise_versions_artifact_and_clears_approval(self):
         open(os.path.join(self.card, "plan.md"), "w").write("v1")
         desk.finish(self.card)

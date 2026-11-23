@@ -208,7 +208,18 @@ def _block(card_dir, state):
         ids = _ids(state)
         needed = "merge the draft PR (yours)" if "pr" in ids else "nothing; the PR's author merges" if {"reply", "review-comments"} & set(ids) else "nothing"
         return f"Next\n{where}{_row('Run:', 'none')}{_row('Needed:', needed)}".rstrip("\n")
-    return f"Next\n{where}{_row('Run:', f'none (continuing with {cur})')}".rstrip("\n")
+    return f"Next\n{where}{_row('Run:', f'none (continuing with {cur})')}{_previous(card_dir, cur)}".rstrip("\n")
+
+
+def _previous(card_dir, step):
+    """A row naming the copy revise or a loop round moved <step>.md to, while no new <step>.md exists."""
+    if os.path.exists(os.path.join(card_dir, step + ".md")):
+        return ""
+    kept = [f for f in os.listdir(card_dir) if re.fullmatch(re.escape(step) + r"\.(?:v|round-)\d+\.md", f)]
+    if not kept:
+        return ""
+    last = max(kept, key=lambda f: os.path.getmtime(os.path.join(card_dir, f)))
+    return _row("Previous:", f"{last} (kept); write a new {step}.md")
 
 
 def advance(card_dir):
@@ -426,7 +437,7 @@ if __name__ == "__main__":
         sys.exit(__doc__)
     try:
         out = cmd()
-        if a[0] in ("finish", "advance", "next"):
+        if a[0] in ("finish", "advance", "next", "revise", "reject"):
             print(next_block(a[1], out))
     except ValueError as e:
         sys.exit(f"error: {e}")
