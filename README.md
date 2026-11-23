@@ -9,7 +9,8 @@ you:    /work https://github.com/acme/shop/issues/412
 bureau: [reads the issue, shows a short overview, proposes the "bugfix" workflow]
 you:    looks good
 bureau: [reproduces the bug, writes a plan, stops]  → you read plan.md, then type /approve
-bureau: [creates a worktree, writes the failing test and the fix, updates docs, reviews the diff with a read-only QA persona, stops]  → you read review.md, then /approve
+bureau: [creates a worktree, writes the failing test and the fix, stops]  → /approve
+bureau: [updates docs, reviews the diff with a read-only QA persona, stops]  → you read review.md, then /approve
 bureau: [drafts the PR, stops]  → /approve
 ```
 
@@ -156,10 +157,10 @@ Personas decide what a step says. How it sounds is yours: run `/tune-voice` once
 
 | Workflow | Use when | Steps (gates in bold) |
 |---|---|---|
-| `bugfix` | A defect you can reproduce or locate in one repo | **plan** → **fix** → docs → review → **pr** |
-| `task` | A well-defined story in one repo | understand → **plan** → **build** → docs → review → **pr** |
-| `small` | A small, low-risk change in one repo with an obvious approach (docs, config, renames) | **understand** → **build** → review → **pr** |
-| `pr-review` | Your own open same-repo PR with review comments to triage and apply (`/work <repo> pr <n>`) | **triage** → **fix** → docs → review → **reply** |
+| `bugfix` | A defect you can reproduce or locate in one repo | **plan** → **fix** → docs → **review** → **pr** |
+| `task` | A well-defined story in one repo | understand → **plan** → **build** → docs → **review** → **pr** |
+| `small` | A small, low-risk change in one repo with an obvious approach (docs, config, renames) | **understand** → **build** → **review** → **pr** |
+| `pr-review` | Your own open same-repo PR with review comments to triage and apply (`/work <repo> pr <n>`) | **triage** → **fix** → docs → **review** → **reply** |
 | `peer-review` | An open PR you review: a teammate's, or any from a fork; no worktree, no commits, no push | **review** → **review-comments** |
 | `project` | A source already split into several tasks (sub-issues, a task list): one child card per task | **intake** → **run** (loop) |
 
@@ -167,7 +168,7 @@ In `small`, `understand` replaces the separate plan: your approval there is what
 
 **Whose PR.** For `/work <repo> pr <n>`, Bureau compares the PR's author with your `gh` login (`gh api user`). Your own same-repo PR gets `pr-review`, which can commit to and push its branch. Anything else (a teammate's PR, or any PR from a fork) gets `peer-review`, which only reads the PR and posts one review after you approve the drafted comments. To change a teammate's same-repo branch anyway, name `pr-review` when you start the card; forks stay review-only, because Bureau cannot push to them.
 
-**Docs step.** In `bugfix`, `task` and `pr-review`, a `docs` step (persona `journalist`) follows the code step: it updates the README, docs and instruction files the change makes stale and commits, or writes `Docs: none needed, <reason>` in `docs.md`. It writes code but has no gate of its own: it runs only after the code step is approved, and its commits are in the branch you approve at the `pr` gate (in `pr-review`, `reply.md` lists them before `reply` pushes). The review step ranks a stale doc as a finding. `desk.py` refuses a step list where a code step with no gate has no gated step after it. `small` keeps docs inside `build` (a docs-only change skips it). No hook checks it.
+**Docs step.** In `bugfix`, `task` and `pr-review`, a `docs` step (persona `journalist`) follows the code step: it updates the README, docs and instruction files the change makes stale and commits, or writes `Docs: none needed, <reason>` in `docs.md`. It writes code but has no gate of its own: it runs only after the code step is approved, and its commits are in the diff QA reviews and you approve at the `review` gate (in `pr-review`, `reply.md` lists them before `reply` pushes). The review step ranks a stale doc as a finding. `desk.py` refuses a step list where a code step with no gate has no gated step after it. `small` keeps docs inside `build` (a docs-only change skips it). No hook checks it.
 
 **Step catalogue.** `steps/` holds one file per step: the shipped workflows' steps plus ones no workflow uses yet (`reproduce`, `research`, `migration`, `human-review`, `publish`, `followup`). Each has a `use_when`; `python3 scripts/workflow.py steps` lists them. Bureau reads it when it proposes a custom workflow or an extra step. Workflows keep their own copy of each step's text, so a workflow can word a step for itself; the catalogue is reference, not included.
 

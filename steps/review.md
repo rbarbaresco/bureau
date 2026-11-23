@@ -10,4 +10,4 @@ As a read-only subagent, check the diff against the card and the approved plan (
 missed criteria, what else the change could break, weak or missing tests, anything unneeded.
 If a docs step ran, check docs.md: does the diff leave any README, doc or instruction file stale? Rank a miss as a finding.
 Write review.md with findings ranked by severity.
-Findings to fix: the human sends the card back to the code step ("Go back"); a clean review is approved as is.
+Findings to fix: the human sends the card back to the code step ("Go back"); a clean review is approved as is. Feedback only redoes the review.
