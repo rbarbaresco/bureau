@@ -68,7 +68,7 @@ For the current step in `state.json`:
    - Gated: `awaiting` is set. Summarize the artifact in a few lines with its path, then paste the **Next** block `finish` printed.
      **Stop.** Do not write `approvals.json` and do not call `advance` until the user has approved.
 6. Human outcomes at a gate: `/approve` → the approve skill advances (on a `loop` step it approves the round and the step stays current; `/approve done` ends the loop). Feedback → `python3 scripts/desk.py revise desk/<card-id> '<feedback>'`
-   and redo the step. "Go back to X" → `desk.py reject desk/<card-id> <step> '<reason>'`.
+   and redo the step: it moved `<step>.md` to the file its `Previous:` row names, so write a new `<step>.md`. "Go back to X" → `desk.py reject desk/<card-id> <step> '<reason>'`.
    Add or skip steps on request: `desk.py add desk/<card-id> <after-step> '<step-json>'`, `desk.py skip desk/<card-id> <step>`.
 7. When `current` is `done`: summarize what was delivered and where (worktree paths, branches, PR link from `pr.md`, for a `reply` card the replies posted, or for a `review-comments` card the review link in `review-comments.json`). If `pr.md` exists with no `## Opened` section, the PR was not opened: run `python3 scripts/pr.py desk/<card-id>` (it works on a done card). If `reply.json` has entries without `"posted": true`, run `python3 scripts/reply.py desk/<card-id>` instead; if `review-comments.json` has no `posted`, run `python3 scripts/post_review.py desk/<card-id>`.
 

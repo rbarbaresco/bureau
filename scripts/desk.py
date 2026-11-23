@@ -10,7 +10,7 @@ Usage: desk.py init <card-dir> '<steps-json>'
        desk.py doctor [card-dir]
 
 finish: current step is done; a gated step then waits (`awaiting`) for the human's /approve.
-finish, advance and next print the human's Next block (state, command to run, what /approve starts); next changes nothing.
+finish, advance, next, revise and reject print the human's Next block (state, command to run, what /approve starts); next changes nothing.
 advance: moves on once the awaiting step is approved (approvals.json is written only by the hook).
 doctor: one line per problem on a card (every active card if none given), each naming its fix; exits 1 if any
 is left. Its only write is relinking worktrees whose paths moved (git worktree repair, idempotent).
@@ -176,7 +176,7 @@ def _starts(state, step_id):
 
 
 def next_block(card_dir, state):
-    """The human-facing Next block for the state `finish` or `advance` just left; a parent card adds its children."""
+    """The human-facing Next block for the state a transition (`finish`, `advance`, `revise`, `reject`) just left; a parent card adds its children."""
     block = _block(card_dir, state)
     if os.path.exists(os.path.join(card_dir, "tasks.md")):
         import project  # lazy: project imports desk
@@ -208,7 +208,18 @@ def _block(card_dir, state):
         ids = _ids(state)
         needed = "merge the draft PR (yours)" if "pr" in ids else "nothing; the PR's author merges" if {"reply", "review-comments"} & set(ids) else "nothing"
         return f"Next\n{where}{_row('Run:', 'none')}{_row('Needed:', needed)}".rstrip("\n")
-    return f"Next\n{where}{_row('Run:', f'none (continuing with {cur})')}".rstrip("\n")
+    return f"Next\n{where}{_row('Run:', f'none (continuing with {cur})')}{_previous(card_dir, cur)}".rstrip("\n")
+
+
+def _previous(card_dir, step):
+    """A row naming the copy revise or a loop round moved <step>.md to, while no new <step>.md exists."""
+    if os.path.exists(os.path.join(card_dir, step + ".md")):
+        return ""
+    kept = [f for f in os.listdir(card_dir) if re.fullmatch(re.escape(step) + r"\.(?:v|round-)\d+\.md", f)]
+    if not kept:
+        return ""
+    last = max(kept, key=lambda f: os.path.getmtime(os.path.join(card_dir, f)))
+    return _row("Previous:", f"{last} (kept); write a new {step}.md")
 
 
 def advance(card_dir):
@@ -426,7 +437,7 @@ if __name__ == "__main__":
         sys.exit(__doc__)
     try:
         out = cmd()
-        if a[0] in ("finish", "advance", "next"):
+        if a[0] in ("finish", "advance", "next", "revise", "reject"):
             print(next_block(a[1], out))
     except ValueError as e:
         sys.exit(f"error: {e}")
