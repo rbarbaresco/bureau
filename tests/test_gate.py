@@ -186,7 +186,8 @@ class GateTest(unittest.TestCase):
         "grep -n '^x$' app.py", "git branch -r --merged", "cat <<< x", 'grep -n "can\'t$" app.py',
         "X=/a; git -C $X log", 'X=/a; sed -n 1p "$X/app.py"', "find ${X}/src -name '*.py'",
         "git diff $BASE...HEAD", "git show $SHA:hooks/gate.py", 'git log "${BASE}..HEAD"', "git log HEAD@{1}",
-        "find . -name '{a,b}.py'",
+        "find . -name '{a,b}.py'", "git log $A..$B", 'git log "$BASE".."$HEAD"', "git log --author=$USER -S$X",
+        "git diff main...HEAD -- hooks/{gate,rules}.py",
     ]
     WRITES = [
         "sed -i s/a/b/ app.py", "sed -n 1p -i app.py", "sed -ni 1p app.py", "sed --in-place 1p app.py",
@@ -217,6 +218,7 @@ class GateTest(unittest.TestCase):
         # QA round 4: braces spell an option; a variable after literal text
         "find sub -{delete,print}", "sort -{o,s} g g", "find sub -{exec,print} rm {} +",
         'find sub "-de"$X', "find sub '-de'$X", 'find sub -de"$X"', 'sed -n 2p f -"$X"',
+        "OLDPWD=-delete; find sub ~-", "PWD=-delete; find sub ~+", "git fetch origin a$X", "git branch -{d,D} x",
     ]
 
     def test_read_only_table(self):
