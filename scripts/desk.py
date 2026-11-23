@@ -10,7 +10,7 @@ Usage: desk.py init <card-dir> '<steps-json>'
        desk.py doctor [card-dir]
 
 finish: current step is done; a gated step then waits (`awaiting`) for the human's /approve.
-finish, advance and next print the human's Next block (state, command to run, what /approve starts); next changes nothing.
+finish, advance, next, revise and reject print the human's Next block (state, command to run, what /approve starts); next changes nothing.
 advance: moves on once the awaiting step is approved (approvals.json is written only by the hook).
 doctor: one line per problem on a card (every active card if none given), each naming its fix; exits 1 if any
 is left. Its only write is relinking worktrees whose paths moved (git worktree repair, idempotent).
