@@ -168,24 +168,30 @@ DESK_READS = ("list", "next")  # print card state, change nothing: read-only in 
 
 
 def desk_state(cmd, cwd):
-    """One invocation of Bureau's own desk.py (by real path) on a card path outside any worktree: card state only.
+    """One invocation of Bureau's own desk.py (by its path) on a card path outside any worktree: card state only.
     Returns (subcommand, card dir), or None."""
     m = DESK.fullmatch(cmd)
     if not m:
         return None
     paths = resolve(m, cwd)
-    if not paths or paths[0] != os.path.join(os.path.realpath(rules.BUREAU), "scripts", "desk.py"):
+    if not paths or not in_bureau(paths[0], "scripts", "desk.py"):
         return None
-    return None if WT.match(paths[1] + "/") else (m["sub"], paths[1])
+    card = os.path.realpath(paths[1])
+    return None if WT.match(card + "/") else (m["sub"], card)
 
 
 def resolve(m, cwd):
-    """Real paths of a DESK/OWN_RUN match's script and card, or None when the cd folder or card has a `..`:
-    bash's `cd` (and pr.py's abspath) drop `..` as text, realpath follows symlinks first, so they could differ."""
-    if any(".." in (p or "").split("/") for p in (m["dir"], m["card"])):
+    """A DESK/OWN_RUN match's script and card paths as written (no `..`, no symlinks followed), or None. bash and python
+    follow links again when the command runs, so a link resolved here could be swapped; `..` is dropped as text by bash."""
+    if any(".." in (p or "").split("/") for p in (m["dir"], m["script"], m["card"])):
         return None
     base = m["dir"] or cwd
-    return os.path.realpath(os.path.join(base, m["script"])), os.path.realpath(os.path.join(base, m["card"] or ""))
+    return os.path.normpath(os.path.join(base, m["script"])), os.path.normpath(os.path.join(base, m["card"] or ""))
+
+
+def in_bureau(path, *parts):
+    """`path`, as written, is Bureau's own <parts> (under Bureau's path as the hook was run, or its real path)."""
+    return path in {os.path.join(b, *parts) for b in (rules.BUREAU, os.path.realpath(rules.BUREAU))}
 
 
 OWN = ("pr.py", "reply.py", "archive.py", "post_review.py")
@@ -194,25 +200,30 @@ OWN_RUN = re.compile(CD + r"[ \t]*python3?[ \t]+(?P<script>[\w./][\w./-]*)[ \t]+
 
 
 def own_script(cmd, cwd):
-    """One run of Bureau's own pr/reply/archive/post_review.py (by real path) on a card outside any worktree. Each checks
-    its own step and approval, so the shell's worktree is not a target (#86, #74). Returns the card dir, or None."""
+    """One run of Bureau's own pr/reply/archive/post_review.py (by its path) on a real card folder directly under the desk.
+    Each checks its own step and approval, so the shell's worktree is not a target (#86, #74). Returns the card dir, or None.
+    A card elsewhere could carry a forged approval; a linked one could name another card's branch (pr.py uses basename)."""
     m = OWN_RUN.fullmatch(cmd)
     if not m:
         return None
     paths = resolve(m, cwd)
-    scripts = os.path.join(os.path.realpath(rules.BUREAU), "scripts")
-    if not paths or paths[0] not in [os.path.join(scripts, n) for n in OWN]:
+    if not paths or not any(in_bureau(paths[0], "scripts", n) for n in OWN):
         return None
-    return None if WT.match(paths[1] + "/") else paths[1]
+    card, desk = paths[1], sessions.DESK
+    if os.path.dirname(card) not in (desk, os.path.realpath(desk)) or not re.fullmatch(r"[\w.-]+", os.path.basename(card)):
+        return None
+    real = os.path.realpath(card)  # the folder itself is no link
+    return real if real == os.path.join(os.path.realpath(desk), os.path.basename(card)) else None
 
 
 def script_hint(cmd):
-    """A run of a Bureau script from a worktree resolves paths there (its own copy, or none): give the command that works."""
+    """One Bureau script call that did not pass: from a worktree its relative paths name the worktree's files."""
     m = cmd and (OWN_RUN.fullmatch(cmd) or DESK.fullmatch(cmd))  # one script call, not a chain or a redirect
     name = m and os.path.basename(m["script"])
+    args = "<subcommand> desk/<card>" if name == "desk.py" else "desk/<card>"
     return name in (*OWN, "desk.py") and (
-        f"The shell is in a worktree, so this names its copy of scripts/{name} or a card path inside it. "
-        f"Run it as: cd {rules.BUREAU} && python3 scripts/{name} desk/<card> ...")
+        f"Bureau's scripts pass the gate only as Bureau's own copy on a card folder under desk/, with no `..` or links. "
+        f"Run it as: cd {rules.BUREAU} && python3 scripts/{name} {args} ...")
 
 
 NEW = re.compile(  # the whole command, bare words and single-quoted text only: a mention in echo/grep/git is not a start

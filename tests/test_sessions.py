@@ -13,7 +13,7 @@ os.symlink(ROOT, LINK)
 sys.path.insert(0, os.path.join(ROOT, "hooks"))
 import sessions  # noqa: E402
 
-HOOKS = os.path.join(ROOT, "hooks")
+HOOKS = os.path.join(LINK, "hooks")  # Bureau as the commands name it
 STEPS = [{"id": "plan", "gate": "approve"}, {"id": "build", "gate": "approve", "writes_code": True}]
 
 
