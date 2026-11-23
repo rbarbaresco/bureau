@@ -221,7 +221,7 @@ If any of those files change, the hash no longer matches and the rules must be l
 
 **What these do not cover.** Be clear about the limits:
 
-- Bash is gated with a read-only allowlist, the `READ_ONLY` pattern in `hooks/gate.py` (it also lets the rules loader and `scripts/worktree.py` run). A deliberate evasion, such as a script that writes files, can slip through.
+- Bash is gated with a read-only allowlist, the `READ_ONLY` pattern in `hooks/gate.py` (it also lets the rules loader and `scripts/worktree.py` run), and `WRITES` denies the write options of commands it allows (`find -delete`, `sort -o`, `git fetch a:b`). A deliberate evasion, such as a script that writes files or an option passed through a `$VAR`, can slip through.
 - The agent can edit `state.json`, for example to fake the current step. This protects against skipped steps and forgetfulness, not against a hostile agent.
 - On steps that do not write code, any Bash command outside the allowlist that touches the worktree is denied, except the repo's `test:` command from `repos.yaml`. That command is not sandboxed: any arguments are allowed, and tests can run code and write files in the worktree.
 
@@ -368,7 +368,7 @@ A child is merged when `gh pr view` says so for the PR link in its `pr.md`; the 
 | "unknown repo 'x'" | Add it to `repos.yaml` |
 | "repos.yaml not found; create it with: cp …" | Run the `cp` command in the message (see Register your repositories) |
 | `/approve` seems to do nothing | Check `/hooks`. The hooks load from `.claude/settings.json` only when Claude Code is started inside the Bureau folder |
-| A read-only command is denied (also the cause of "does not write code" above) | Redirects other than to `/dev/null` and pipes into non-allowlisted commands count as writes. Simplify the command, declare the repo's `test:` in `repos.yaml` to run tests, or approve the build step first |
+| A read-only command is denied (also the cause of "does not write code" above) | Redirects other than to `/dev/null`, `$(…)`, backticks, `tee` and pipes into non-allowlisted commands count as writes, and so do `sed` other than `sed -n <lines>p`, `awk` with `>`, `|` or `system`, and `find -exec`/`-delete`. Quoted `\|;&` in a pattern are fine. Simplify the command, declare the repo's `test:` in `repos.yaml` to run tests, or approve the build step first |
 | Jira card cannot be read | Check the `acli` login, or paste the story text |
 | A card or its worktree misbehaves after you moved the Bureau folder or renamed a card, or anything else looks off | Fix the paths in `repos.yaml`, then run `python3 scripts/desk.py doctor [desk/<card>]`. It relinks moved worktrees (`git worktree repair`) and prints one line per remaining problem with its fix. Do not rename card folders: the claim log, branch and worktree are bound to the name |
 
