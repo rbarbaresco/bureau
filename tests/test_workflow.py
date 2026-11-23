@@ -26,6 +26,7 @@ class WorkflowTest(unittest.TestCase):
             # the human approves something before any code is written (plan, or understand in `small`)
             before = wf["steps"][: wf["steps"].index(code[0])]
             self.assertTrue(any(s["gate"] == "approve" for s in before), name)
+            self.assertEqual(next(s for s in wf["steps"] if s["id"] == "review")["gate"], "approve", name)  # #108: findings stop the card
             self.assertTrue(all(s["instructions"] for s in wf["steps"]))
 
     def test_voice_field_parses_validates_and_reaches_state(self):

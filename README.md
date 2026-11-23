@@ -9,8 +9,8 @@ you:    /work https://github.com/acme/shop/issues/412
 bureau: [reads the issue, shows a short overview, proposes the "bugfix" workflow]
 you:    looks good
 bureau: [reproduces the bug, writes a plan, stops]  → you read plan.md, then type /approve
-bureau: [creates a worktree, writes the failing test and the fix, stops]  → /approve
-bureau: [reviews the diff with a read-only QA persona, drafts the PR, stops]  → /approve
+bureau: [creates a worktree, writes the failing test and the fix, updates docs, reviews the diff with a read-only QA persona, stops]  → you read review.md, then /approve
+bureau: [drafts the PR, stops]  → /approve
 ```
 
 What you get:

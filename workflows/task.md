@@ -38,10 +38,11 @@ End the artifact with `## Open questions`: one numbered item per question, writt
 
 ## review
 persona: qa
-gate: none
+gate: approve
 
 As a read-only subagent, check the diff against the acceptance criteria and plan.md. Write review.md with findings ranked by severity.
 Check docs.md: does the diff leave any README, doc or instruction file stale? Rank a miss as a finding.
+Findings to fix: the human sends the card back to the code step ("Go back"); a clean review is approved as is.
 
 ## pr
 persona: staff-engineer
