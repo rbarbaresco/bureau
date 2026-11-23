@@ -160,8 +160,9 @@ def check(card, repo, session, cmd=None):
 
 
 DESK = re.compile(  # bare words and single-quoted text only: nothing for bash to expand, split or comment out
-    r"[ \t]*python3?[ \t]+(?P<script>[\w./][\w./-]*)[ \t]+(?P<sub>init|list|doctor|finish|advance|revise|reject|add|skip)"
+    r"[ \t]*python3?[ \t]+(?P<script>[\w./][\w./-]*)[ \t]+(?P<sub>init|list|doctor|finish|advance|revise|reject|add|skip|next)"
     r"(?:[ \t]+(?P<card>[\w./-]+)(?:[ \t]+(?:'[^']*'|[\w.-]+))*)?[ \t]*")
+DESK_READS = ("list", "next")  # print card state, change nothing: read-only in a chain and on any session's card
 
 
 def desk_state(cmd, cwd):
@@ -212,7 +213,8 @@ def read_only(cmd, cwd=""):
     if desk_state(cmd, cwd):
         return True
     cmd = HARMLESS_REDIRECT.sub("", cmd)
-    return not UNSAFE.search(plain(cmd)) and all(reads(s) for s in segments(cmd))
+    return not UNSAFE.search(plain(cmd)) and all(
+        reads(s) or (desk_state(s, cwd) or ("",))[0] in DESK_READS for s in segments(cmd))
 
 
 def bash_targets(cmd, cwd):
@@ -250,7 +252,7 @@ def main():
         state_cmd = desk_state(cmd, cwd)
         if state_cmd and state_cmd[0] == "doctor":  # unowned cards are what it is for; it writes only git worktree links
             return
-        if state_cmd and state_cmd[0] not in ("list", "init"):
+        if state_cmd and state_cmd[0] not in ("init", *DESK_READS):
             for card in sorted({state_cmd[1]} | named_cards(cmd, cwd)):  # "." and desk/<id>/sub both mean a card
                 owner(card, session)
         if read_only(cmd, cwd):

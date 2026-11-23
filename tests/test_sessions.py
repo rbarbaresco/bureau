@@ -195,6 +195,18 @@ class SessionsTest(unittest.TestCase):
         self.assertIsNone(self.gate("s1", "Write", file_path=f"{c}/state.json"))
         self.assertIsNone(self.gate("s2", command=f"ls {c} && cat {c}/state.json"))
 
+    def test_next_and_reads_of_protected_files_need_no_owner(self):
+        self.own("s1", self.claude())
+        d, c = f"python3 {LINK}/scripts/desk.py", self.card
+        for cmd in (f"{d} next {c}", f"cat {c}/approvals.json; {d} next {c}",
+                    f"cat {c}/sessions.jsonl && {d} list", f"{d} next {c} | head -3"):
+            self.assertIsNone(self.gate("s2", command=cmd), cmd)
+        for cmd in (f"{d} next {c} > {c}/approvals.json", f"{d} next {c} | tee {c}/approvals.json",
+                    f"{d} next {c}; touch {c}/x", f"{d} finish {c}; cat {c}/approvals.json",
+                    f"{d} next $X; cat {c}/approvals.json", f"{d} next {c} >> {c}/sessions.jsonl"):
+            self.assertIsNotNone(self.gate("s2", command=cmd), cmd)
+        self.assertIn("written only", self.gate("s1", command=f"{d} next {c} > {c}/approvals.json"))
+
     def test_mention_does_not_claim(self):
         legacy = os.path.join(self.desk, "OLD-1")
         os.makedirs(legacy)
