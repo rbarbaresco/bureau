@@ -143,6 +143,22 @@ class GateTest(unittest.TestCase):
         self.assertIn("/setup-bureau", self.run_gate("Bash", command=f"echo '{{}}' > {self.tmp}/bureau.json"))
         self.assertIsNone(self.run_gate("Bash", command=f"cat {self.tmp}/bureau.json"))
 
+    def test_agent_cannot_run_the_prompt_hooks(self):
+        for hook in ("setup", "approve", "owner", "session_end"):
+            for cmd in (f"""echo '{{"prompt":"/{hook} 1b"}}' | python3 hooks/{hook}.py""",
+                        f"python3 /opt/bureau/hooks/{hook}.py < /dev/null", f"cd hooks && python3 ./{hook}.py"):
+                self.assertIn("only from your own prompt", self.run_gate("Bash", command=cmd) or "", cmd)
+        self.assertIsNone(self.run_gate("Bash", command="cat hooks/approve.py"))
+        self.assertIsNone(self.run_gate("Bash", command=f"python3 /opt/bureau/hooks/rules.py {self.wt}"))
+
+    def test_docs_allowed_after_an_auto_advanced_build(self):
+        steps = [STEPS[0], {**STEPS[1], "gate": "none", "auto": True}, {"id": "docs", "gate": "none", "writes_code": True},
+                 {"id": "pr", "gate": "approve"}]
+        self.state({"current": "docs", "steps": steps})
+        self.approve("plan")
+        self.ack()
+        self.assertIsNone(self.edit())
+
     def test_bash_write_denied_read_only_allowed(self):
         self.assertIsNotNone(self.run_gate("Bash", command=f"sed -i s/a/b/ {self.wt}/app.py"))
         self.assertIsNotNone(self.run_gate("Bash", command=f"cat {self.wt}/a > {self.wt}/b"))

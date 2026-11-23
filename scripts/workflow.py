@@ -86,7 +86,11 @@ if __name__ == "__main__":
                     w = parse(os.path.join(d, f))
                     print(f"{w['name']}: {w['use_when']}")
         elif a[:1] == ["show"] and len(a) == 2:
-            steps = desk.apply_settings(parse(resolve(a[1]))["steps"], desk.settings())
+            steps = parse(resolve(a[1]))["steps"]
+            try:
+                steps = desk.apply_settings([dict(x) for x in steps], desk.settings())
+            except ValueError as e:  # start refuses it too; show the table as written
+                print(f"warning: auto_advance not applied: {e}", file=sys.stderr)
             print("| step | persona | voice | gate | writes code |\n|---|---|---|---|---|")  # /work pastes this table unchanged
             for s in steps:
                 gate = s["gate"] + (" (loop)" if s["loop"] else "") + (" (auto)" if s.get("auto") else "")

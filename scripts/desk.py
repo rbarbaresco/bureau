@@ -32,7 +32,7 @@ GATES = ("none", "approve", "approve+check")
 VOICES = ("operator",)  # operator -> voice.md at the Bureau root, written by /tune-voice
 SEVERITIES = ("nit", "low", "medium", "high")  # review.md's `Highest severity:` line, lowest first
 # bureau.json: the human's standing settings, written only by hooks/setup.py (/setup-bureau); questions in bureau.template.json
-SETTINGS = os.environ.get("BUREAU_SETTINGS") or os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "bureau.json")
+SETTINGS = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "bureau.json")
 
 
 def validate_steps(steps, run=False):
@@ -155,17 +155,24 @@ def finish(card_dir):
 
 
 def _severity(card_dir):
+    """The value of review.md's first line that is not blank or a heading; a quote of the line further down never counts."""
     try:
         with open(os.path.join(card_dir, "review.md")) as f:
-            m = re.search(r"^\W*Highest severity\W*\s*(none|" + "|".join(SEVERITIES) + r")\b", f.read(), re.M | re.I)
+            first = next((l for l in f if l.strip() and not l.lstrip().startswith("#")), "")
     except OSError:
         return None
+    m = re.match(r"\W*Highest severity\W*\s*(none|" + "|".join(SEVERITIES) + r")\b", first, re.I)
     return m and m[1].lower()
+
+
+def _read(path):
+    with open(path) as f:
+        return f.read()
 
 
 def _auto_rejects(card_dir):
     return sorted((f for f in os.listdir(card_dir) if re.fullmatch(r"reject-\d+\.md", f)
-                   and re.match(r"back to \S+: auto:", open(os.path.join(card_dir, f)).read())),
+                   and re.match(r"back to \S+: auto:", _read(os.path.join(card_dir, f)))),
                   key=lambda f: int(f[7:-3]))
 
 
@@ -187,7 +194,8 @@ def _auto_rows(card_dir, state, step):
     rows, auto = "", _auto_rejects(card_dir)
     if auto:
         rows += _row("Auto:", f"{len(auto)} go-back{'s' if len(auto) > 1 else ''} from review ({', '.join(auto)})")
-    if step == "review" and (state.get("settings") or {}).get("go_back") in SEVERITIES and not _severity(card_dir):
+    code = any(s.get("writes_code") for s in state["steps"])  # peer-review's review has nothing to go back to
+    if step == "review" and code and (state.get("settings") or {}).get("go_back") in SEVERITIES and not _severity(card_dir):
         rows += _row("" if rows else "Auto:", "review.md has no `Highest severity:` line, so it did not go back on its own")
     return rows
 

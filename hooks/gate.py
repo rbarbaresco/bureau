@@ -50,7 +50,9 @@ QUOTED = re.compile(  # what bash reads as one inert unit, scanned left to right
 OPTION_CMD = re.compile(rf"^\s*(find|sort|sed|awk|uniq|git\s+{GIT_C}(fetch|branch))\b")  # options that write
 WORD_VAR = re.compile(r"""(?:(?<=\s)|(?<=\s"))\$(\w+|\{\w+\})""")  # $X at a word's start: not "-de"$X, $@, ${X:--i}
 BRACES = re.compile(r"\{[^}\s]*(,|\.\.)[^}\s]*\}")  # -{delete,print} spells an option; ${X} and @{1} do not
-HARMLESS_REDIRECT = re.compile(r"\d?>\s*/dev/null|\d?>&\d")
+# hooks that write approvals, settings or claims: piping a fake prompt into one would approve the agent's own gate
+PROMPT_HOOK = re.compile(r"\bpython[\d.]*\b[^;&|\n]*?(?<![\w-])(approve|setup|owner|session_end)\.py\b")
+HARMLESS_REDIRECT =re.compile(r"\d?>\s*/dev/null|\d?>&\d")
 
 
 def segments(cmd):
@@ -265,6 +267,9 @@ def main():
             owner(card, session)
         if re.search(r"(?<![\w.-])bureau\.json", cmd):
             deny("bureau.json holds the human's standing approvals; only their /setup-bureau writes it.")
+        m = PROMPT_HOOK.search(cmd)
+        if m:
+            deny(f"hooks/{m[1]}.py runs only from your own prompt (/approve, /setup-bureau, /work) or session end, not from Bash.")
         if "approvals.json" in cmd or "sessions.jsonl" in cmd:
             deny("approvals.json is written only by the /approve hook; sessions.jsonl only by the session hooks.")
         for card, repo in sorted(bash_targets(cmd, cwd)):

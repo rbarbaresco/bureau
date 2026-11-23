@@ -43,8 +43,11 @@ def main():
     m = re.match(r"\s*/setup-bureau\b(.*)", ev.get("prompt", ""))  # only the command line: a note below is ignored
     if not m:
         return
-    with open(TEMPLATE) as f:
-        template = json.load(f)
+    try:
+        with open(TEMPLATE) as f:
+            template = json.load(f)
+    except (OSError, ValueError) as e:
+        block(f"bureau.template.json is missing or unreadable ({e}); restore it from git. Nothing was saved.")
     current = desk.settings()
     answers = {}
     for word in m[1].split():

@@ -1,7 +1,9 @@
 """Standing settings (#126): /setup-bureau writes bureau.json; cards snapshot it at start; review may go back on its own."""
+import contextlib
+import io
 import json
 import os
-import subprocess
+import runpy
 import sys
 import tempfile
 import unittest
@@ -11,8 +13,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 import desk  # noqa: E402
 import workflow  # noqa: E402
+sys.path.insert(0, os.path.join(ROOT, "hooks"))
+import setup  # noqa: E402
 
-SETUP = os.path.join(ROOT, "hooks", "setup.py")
 TEMPLATE = os.path.join(ROOT, "bureau.template.json")
 STEPS = [{"id": "plan", "gate": "approve"}, {"id": "build", "gate": "approve", "writes_code": True},
          {"id": "docs", "gate": "none", "writes_code": True}, {"id": "review", "gate": "approve"},
@@ -75,6 +78,17 @@ class GoBackTest(unittest.TestCase):
         block = desk.next_block(self.card, desk.finish(self.card))
         self.assertIn("Highest severity:", block)
 
+    def test_only_the_first_line_after_the_title_counts(self):
+        self.at_review({"go_back": "medium"}, None)
+        with open(os.path.join(self.card, "review.md"), "w") as f:
+            f.write("# Review\n\nRound 2 intro\n\n- `Highest severity: high` must be line 1\n")
+        self.assertEqual(desk.finish(self.card)["awaiting"], "review")
+
+    def test_peer_review_has_no_code_step_so_no_auto_row(self):
+        desk.init(self.card, [{"id": "review", "gate": "approve"}, {"id": "review-comments", "gate": "approve"}],
+                  settings={"go_back": "medium"})
+        self.assertNotIn("Auto:", desk.next_block(self.card, desk.finish(self.card)))
+
     def test_live_bureau_json_does_not_change_a_running_card(self):
         self.at_review(None, "high")
         with mock.patch.object(desk, "settings", return_value={"go_back": "nit"}):
@@ -115,20 +129,43 @@ class AutoAdvanceTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "later gated step"):
             desk.apply_settings([{"id": "build", "gate": "approve", "writes_code": True}], {"auto_advance": "on"})
 
+    def show(self, name):
+        out, err = io.StringIO(), io.StringIO()
+        with mock.patch.object(sys, "argv", ["workflow.py", "show", name]), \
+                contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            runpy.run_path(os.path.join(ROOT, "scripts", "workflow.py"), run_name="__main__")
+        return out.getvalue(), err.getvalue()
+
     def test_show_marks_the_auto_gate(self):
         self.write({"auto_advance": "on"})
-        out = subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "workflow.py"), "show", "small"],
-                             capture_output=True, text=True, env={**os.environ, "BUREAU_SETTINGS": self.settings}).stdout
-        self.assertIn("| build | staff-engineer |  | none (auto) | yes |", out)
+        self.assertIn("| build | staff-engineer |  | none (auto) | yes |", self.show("small")[0])
+
+    def test_show_warns_when_auto_advance_cannot_apply(self):
+        self.write({"auto_advance": "on"})
+        path = os.path.join(self.tmp, "nogate.md")
+        with open(path, "w") as f:
+            f.write("---\nname: nogate\nuse_when: x\n---\n## build\ngate: approve\nwrites_code: true\n\nDo it.\n")
+        out, err = self.show(path)
+        self.assertIn("| build | - |  | approve | yes |", out)
+        self.assertIn("warning:", err)
 
 
 class SetupHookTest(unittest.TestCase):
     def setUp(self):
         self.settings = os.path.join(tempfile.mkdtemp(), "bureau.json")
+        p = mock.patch.object(desk, "SETTINGS", self.settings)
+        p.start()
+        self.addCleanup(p.stop)
 
-    def run_hook(self, prompt):
-        return subprocess.run([sys.executable, SETUP], input=json.dumps({"prompt": prompt}), capture_output=True,
-                              text=True, env={**os.environ, "BUREAU_SETTINGS": self.settings}, check=True).stdout
+    def run_hook(self, prompt, template=TEMPLATE):
+        out = io.StringIO()
+        with mock.patch.object(sys, "stdin", io.StringIO(json.dumps({"prompt": prompt}))), \
+                mock.patch.object(setup, "TEMPLATE", template), contextlib.redirect_stdout(out):
+            try:
+                setup.main()
+            except SystemExit as e:
+                self.assertEqual(e.code, 0)
+        return out.getvalue()
 
     def saved(self):
         with open(self.settings) as f:
@@ -158,6 +195,12 @@ class SetupHookTest(unittest.TestCase):
         out = self.run_hook("/setup-bureau 3c\nthanks")
         self.assertEqual(self.saved(), {"auto_advance": "on", "go_back": "medium", "go_back_rounds": "6"})
         self.assertIn("c) 6   <- current", out)
+
+    def test_missing_template_blocks_with_its_name(self):
+        out = json.loads(self.run_hook("/setup-bureau 1b", template=self.settings + ".missing"))
+        self.assertEqual(out["decision"], "block")
+        self.assertIn("bureau.template.json", out["reason"])
+        self.assertFalse(os.path.exists(self.settings))
 
     def test_bad_answer_blocks_and_writes_nothing(self):
         for bad in ("/setup-bureau 1z", "/setup-bureau 9a", "/setup-bureau 1a x", "/setup-bureau 1a 1b"):
