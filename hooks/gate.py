@@ -21,16 +21,43 @@ import sessions
 import worktree
 
 WT = rules.WT
-ABS_WT = re.compile(r"(\S*?/desk/\S+?)/worktrees/([^/\s\"']+)")
-REL_WT = re.compile(r"worktrees/([^/\s\"']+)")
+ABS_WT = re.compile(r"(\S*?/desk/\S+?)/worktrees/([^/\s\"';|&)]+)")  # a repo name ends at a shell separator
+REL_WT = re.compile(r"worktrees/([^/\s\"';|&)]+)")
+SED_ADDR = r"(\d+|\$|/(?:[^/\\']|\\.)*/)"
 READ_ONLY = re.compile(
-    r"^\s*(ls|cat|rg|grep|head|tail|wc|pwd|cd|echo|git\s+(-C\s+\S+\s+)?(status|log|diff|show|grep|rev-parse|ls-files))\b"
+    r"^\s*(ls|cat|rg|grep|head|tail|wc|pwd|cd|echo|cut|tr|nl|diff|jq|sort|find|gh\s+pr\s+(view|diff|checks)"
+    r"|git\s+(-C\s+\S+\s+)?(status|log|diff|show|grep|rev-parse|ls-files|merge-base|blame|cat-file|fetch|worktree\s+list))\b"
+    r"|^\s*git\s+(-C\s+\S+\s+)?branch(\s+(-[arlv]|-vv|--(all|remotes|list|verbose|show-current)"
+    r"|--(contains|merged|no-merged|points-at)(=|\s+)\S+))*\s*$"  # listing only: a name creates a branch
+    rf"|^\s*sed\s+-n\s+(?P<q>['\"]?){SED_ADDR}(,{SED_ADDR})?p(?P=q)(\s+(?!-)\S+)*\s*$"  # print-only script, files after it
+    r"|^\s*awk(\s+-[Fv]\s*\S+)*\s+'(?![^']*(system|getline))[^'>|]*'(\s+(?!-)\S+)*\s*$"  # no output, pipe or command
+    r"|^\s*uniq(\s+-\S+)*(\s+(?!-)\S+)?\s*$"  # a second operand is the output file
+    r"|^\s*[A-Za-z_]\w*=(?:'[^']*'|\"[^\"]*\"|[^\s'\"])*\s*$"  # a lone `X=/path` segment
     r"|^\s*python3?\s+\S*/hooks/rules\.py\b"  # the rules loader must run before any write is allowed
     r"|^\s*python3?\s+\S*/scripts/worktree\.py\b"  # creates the worktree itself
+)
+WRITES = re.compile(  # write options of commands READ_ONLY allows by name
+    r"^\s*find\b.*(?<![\w-])-(exec|ok|delete|fprint|fls)"
+    r"|^\s*sort\b.*(?<![\w-])(-[a-zA-Z]*o|--[oc])"
+    r"|^\s*git\s+(-C\s+\S+\s+)?fetch\b.*(:|--u|(?<![\w-])-u)"  # a:b updates a local branch; --upload-pack runs a command
 )
 UNSAFE = re.compile(r"[>`]|\$\(")  # redirects and substitutions can write from a "read-only" command
 QUOTED = re.compile(r"""'[^']*'|"(?:[^"\\]|\\.)*\"""")
 HARMLESS_REDIRECT = re.compile(r"\d?>\s*/dev/null|\d?>&\d")
+
+
+def segments(cmd):
+    """The commands of a chain: split on ; | & and newlines outside quotes, so `grep "a\\|b"` stays one."""
+    mask = QUOTED.sub(lambda m: "_" * len(m[0]), cmd)
+    out, start = [], 0
+    for m in re.finditer(r"[;|&\n]+", mask):
+        out.append(cmd[start:m.start()])
+        start = m.end()
+    return [s for s in out + [cmd[start:]] if s.strip()]
+
+
+def reads(seg):
+    return READ_ONLY.match(seg) and not WRITES.match(seg)
 
 
 def plain(cmd):
@@ -74,9 +101,8 @@ def test_allowed(cmd, repo):
     if not prefix.strip():  # an empty prefix would match every segment
         return False
     cmd = HARMLESS_REDIRECT.sub("", cmd)
-    segs = [s for s in re.split(r"[;|&\n]+", cmd) if s.strip()]
     return not UNSAFE.search(plain(cmd)) and all(
-        READ_ONLY.match(s) or re.match(rf"\s*{re.escape(prefix)}(\s|$)", s) for s in segs)
+        reads(s) or re.match(rf"\s*{re.escape(prefix)}(\s|$)", s) for s in segments(cmd))
 
 
 def owner(card, session):
@@ -172,8 +198,7 @@ def read_only(cmd, cwd=""):
     if desk_state(cmd, cwd):
         return True
     cmd = HARMLESS_REDIRECT.sub("", cmd)
-    segs = [s for s in re.split(r"[;|&\n]+", cmd) if s.strip()]
-    return not UNSAFE.search(plain(cmd)) and all(READ_ONLY.match(s) for s in segs)
+    return not UNSAFE.search(plain(cmd)) and all(reads(s) for s in segments(cmd))
 
 
 def bash_targets(cmd, cwd):
@@ -182,7 +207,7 @@ def bash_targets(cmd, cwd):
     if m:
         out.add((m["card"], m["repo"]))
     for m in ABS_WT.finditer(cmd):
-        out.add((m[1].lstrip("\"'="), m[2]))
+        out.add((re.split(r"[=\"']", m[1])[-1], m[2]))  # the path after W= / --git-dir= / a quote
     base = card_root(cwd)
     if base:
         out.update((base, m[1]) for m in REL_WT.finditer(cmd))

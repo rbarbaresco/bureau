@@ -83,6 +83,8 @@ class GateTest(unittest.TestCase):
         self.approve("plan")
         self.ack()
         self.assertIsNone(self.edit())
+        self.assertIsNone(self.run_gate("Bash", command=f"W={self.wt}; touch $W/x"))  # card is not "W=/…"
+        self.assertIsNone(self.run_gate("Bash", command=f"git --git-dir={self.wt}/.git commit"))
 
     def test_stale_ack_after_rule_change(self):
         self.approve("plan")
@@ -168,6 +170,50 @@ class GateTest(unittest.TestCase):
     def test_git_grep_allowed_on_read_only_step(self):
         self.state({"current": "plan", "steps": STEPS})
         self.assertIsNone(self.run_gate("Bash", command=f"git -C {self.wt} grep foo"))
+
+    READS = [
+        'grep -n "def \\|class " app.py', "grep -n 'a|b;c&d' app.py | sort -k2 | uniq -c | cut -c1-5 | tr a b | nl",
+        "sed -n 40,80p app.py", "sed -n '/^## fix/,/^## docs/p' plan.md", "sed -n '$p' app.py",
+        "find . -name '*.py' -type f", "diff a.py b.py", "jq .x f.json", "cat -n app.py", "uniq -c f",
+        "awk '{print $1}' app.py", "awk -F: -v n=2 'NR<n' f",
+        "git branch", "git branch -a -vv", "git branch --show-current", "git branch --contains HEAD",
+        "git fetch origin", "git fetch origin main", "git merge-base HEAD origin/main", "git blame -L 1,5 app.py",
+        "git cat-file -p HEAD", "git worktree list", "gh pr view 1 --json title", "gh pr diff 1", "gh pr checks 1",
+        "X=/a/b; sed -n 1,5p $X/app.py", 'X="/a b"; ls "$X"',
+    ]
+    WRITES = [
+        "sed -i s/a/b/ app.py", "sed -n 1p -i app.py", "sed -ni 1p app.py", "sed --in-place 1p app.py",
+        "sed -n 'w out' app.py", "sed -n '1e touch x' app.py", "sed -n 1p -f s.sed app.py", "sed s/a/b/w app.py",
+        "find . -exec rm {} ;", "find . -execdir rm {} +", "find . -delete", "find . '-delete'", "find . -fprint out",
+        "find . -ok rm {} ;", "awk '{print > \"f\"}' app.py", "awk '{print | \"sh\"}' app.py",
+        "awk '{system(\"rm x\")}' app.py", "awk -f prog.awk app.py", "awk -i inplace '{print}' app.py",
+        "sort -o out f", "sort -uo out f", "sort --output=out f", "uniq in out",
+        "git branch new", "git branch -D main", "git branch -m a b", "git fetch origin main:main",
+        "git fetch --upload-pack=x origin", "ls | tee out", "echo x > app.py", "cat $(touch x)", "cat `touch x`",
+        "X=1 touch app.py", "X=/a; touch $X",
+    ]
+
+    def test_read_only_table(self):
+        """Reads pass on a non-writing step, a done card and an intake card; writes do not (#112)."""
+        run = lambda c: self.run_gate("Bash", cwd=self.wt, command=c)
+        self.state({"current": "plan", "steps": STEPS})
+        for c in self.READS:
+            self.assertIsNone(run(c), c)
+        for c in self.WRITES:
+            self.assertIn("does not write code", run(c) or "", c)
+        self.state({"current": "done", "steps": STEPS})
+        self.assertIsNone(run(self.READS[0]))
+        self.assertIn("Card is done", run(self.WRITES[0]))
+        os.remove(os.path.join(self.card, "state.json"))
+        self.assertIsNone(run(self.READS[0]))
+        self.assertIn("no workflow yet", run(self.WRITES[0]))
+
+    def test_declared_test_command_with_quoted_pipe(self):
+        self.state({"current": "plan", "steps": STEPS})
+        repos = os.path.join(self.tmp, "repos.yaml")
+        write(repos, "repos:\n  clone:\n    path: x\n    test: python3 -I -m unittest\n")
+        with mock.patch.dict(os.environ, {"BUREAU_REPOS": repos}):
+            self.assertIsNone(self.run_gate("Bash", cwd=self.wt, command='python3 -I -m unittest -k "a|b" | tail -3'))
 
     def test_desk_state_commands_allowed_from_worktree_cwd(self):
         self.state({"current": "plan", "steps": STEPS})
