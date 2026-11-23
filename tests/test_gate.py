@@ -149,6 +149,9 @@ class GateTest(unittest.TestCase):
                         f"python3 /opt/bureau/hooks/{hook}.py < /dev/null", f"cd hooks && python3 ./{hook}.py"):
                 self.assertIn("only from your own prompt", self.run_gate("Bash", command=cmd) or "", cmd)
         self.assertIsNone(self.run_gate("Bash", command="cat hooks/approve.py"))
+        for cmd in ("python3 setup.py build_ext --inplace", "python setup.py sdist && python3 tools/approve.py",
+                    "cd hooksmith && python3 setup.py develop"):  # a target repo's own setup.py is not a Bureau hook
+            self.assertIsNone(self.run_gate("Bash", command=cmd), cmd)
         self.assertIsNone(self.run_gate("Bash", command=f"python3 /opt/bureau/hooks/rules.py {self.wt}"))
 
     def test_docs_allowed_after_an_auto_advanced_build(self):
