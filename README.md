@@ -221,7 +221,7 @@ desk/SHOP-42/
 
 Instructions in `AGENTS.md` are a request. Hooks turn the three most important ones into rules the agent cannot skip.
 
-**1. No code before the gate.** A `PreToolUse` hook (`hooks/gate.py`) denies edits inside a card's worktree unless the current step writes code and every earlier gated step is approved. Only a prompt you type (`/approve`, handled by the `UserPromptSubmit` hook `hooks/approve.py`) can approve, so the agent cannot approve itself. The one standing approval is `bureau.json` ([Standing settings](#standing-settings)), written only by `hooks/setup.py` from your `/setup-bureau` line; the same hook denies the agent's writes to it.
+**1. No code before the gate.** A `PreToolUse` hook (`hooks/gate.py`) denies edits inside a card's worktree unless the current step writes code and every earlier gated step is approved. Only a prompt you type (`/approve`, handled by the `UserPromptSubmit` hook `hooks/approve.py`) can approve, so the agent cannot approve itself. The one standing approval is `bureau.json` ([Standing settings](#standing-settings)), written only by `hooks/setup.py` from your `/setup-bureau` line; `gate.py` denies the agent's writes to it. `gate.py` also denies a Bash command that runs a prompt hook (`approve.py`, `setup.py`, `owner.py`, `session_end.py`), so the agent cannot pipe a fake prompt into one. Like the file checks, this matches the command's text: a name assembled at run time is not caught.
 
 **2. No code before the repo's rules are read.** The same hook denies edits until `hooks/rules.py` has been run for that worktree. It prints and records a hash of:
 
@@ -387,6 +387,8 @@ A child is merged when `gh pr view` says so for the PR link in its `pr.md`; the 
 | "Card x is held by session …" or "…is held by live session … there is no override" | Another live session owns the card. Close it, then run `/work <card-id>` |
 | "Card x has no live owner session. Run /work x to take over." | The owner ended or died. Run `/work <card-id>` in this session |
 | "approvals.json is written only by the /approve hook; sessions.jsonl only by the session hooks." | A command that names either file is denied unless every part of it is read-only (the commands in the "A read-only command is denied" row, plus `desk.py list` and `desk.py next`). Run the other part as its own command |
+| "hooks/<name>.py runs only from your own prompt (/approve, /setup-bureau, /work) or session end, not from Bash." | The agent tried to run a prompt hook itself. Type the command (`/approve`, `/setup-bureau …`) instead; reading the hook with `cat` is allowed |
+| "bureau.json holds the human's standing approvals; only their /setup-bureau writes it." | A write to `bureau.json` other than your `/setup-bureau` line. Type `/setup-bureau` to change the settings |
 | "Step 'x' does not write code" | The run is not on a build step yet; finish the earlier steps. Non-build steps can still run the read-only commands in the "A read-only command is denied" row |
 | "unknown repo 'x'" | Add it to `repos.yaml` |
 | "repos.yaml not found; create it with: cp …" | Run the `cp` command in the message (see Register your repositories) |
