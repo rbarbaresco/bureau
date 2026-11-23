@@ -83,6 +83,9 @@ class GateTest(unittest.TestCase):
         self.approve("plan")
         self.ack()
         self.assertIsNone(self.edit())
+        self.assertIsNone(self.run_gate("Bash", command=f"W={self.wt}; touch $W/x"))  # card is not "W=/…"
+        self.assertIsNone(self.run_gate("Bash", command=f"git --git-dir={self.wt}/.git commit"))
+        self.assertIn("No worktree", self.run_gate("Bash", command=f"touch {self.wt}}}/x"))  # was a crash, i.e. allowed
 
     def test_stale_ack_after_rule_change(self):
         self.approve("plan")
@@ -168,6 +171,79 @@ class GateTest(unittest.TestCase):
     def test_git_grep_allowed_on_read_only_step(self):
         self.state({"current": "plan", "steps": STEPS})
         self.assertIsNone(self.run_gate("Bash", command=f"git -C {self.wt} grep foo"))
+
+    READS = [
+        'grep -n "def \\|class " app.py', "grep -n 'a|b;c&d' app.py | sort -k2 | uniq -c | cut -c1-5 | tr a b | nl",
+        "sed -n 40,80p app.py", "sed -n '/^## fix/,/^## docs/p' plan.md", "sed -n '$p' app.py",
+        "find . -name '*.py' -type f", "diff a.py b.py", "jq .x f.json", "cat -n app.py", "uniq -c f",
+        "awk '{print $1}' app.py", "awk -F: -v n=2 'NR<n' f",
+        "git branch", "git branch -a -vv", "git branch --show-current", "git branch --contains HEAD",
+        "git fetch origin", "git fetch origin main", "git merge-base HEAD origin/main", "git blame -L 1,5 app.py",
+        "git cat-file -p HEAD", "git worktree list", "gh pr view 1 --json title", "gh pr diff 1", "gh pr checks 1",
+        "X=/a/b; sed -n 1,5p $X/app.py", 'X="/a b"; ls "$X"',
+        "ls # it's fine; really", 'grep -n "a\\"b|c" app.py', "grep a\\|b app.py", "sed -n 1p ./app.py 'b c.py'",
+        "uniq -c in", "git branch --merged origin/main",
+        "grep -n '^x$' app.py", "git branch -r --merged", "cat <<< x", 'grep -n "can\'t$" app.py',
+        "X=/a; git -C $X log", 'X=/a; sed -n 1p "$X/app.py"', "find ${X}/src -name '*.py'",
+        "git diff $BASE...HEAD", "git show $SHA:hooks/gate.py", 'git log "${BASE}..HEAD"', "git log HEAD@{1}",
+        "find . -name '{a,b}.py'", "git log $A..$B", 'git log "$BASE".."$HEAD"', "git log --author=$USER -S$X",
+        "git diff main...HEAD -- hooks/{gate,rules}.py", 'W=/a; git -C "$W" diff', "git -C ${W} log",
+    ]
+    WRITES = [
+        "sed -i s/a/b/ app.py", "sed -n 1p -i app.py", "sed -ni 1p app.py", "sed --in-place 1p app.py",
+        "sed -n 'w out' app.py", "sed -n '1e touch x' app.py", "sed -n 1p -f s.sed app.py", "sed s/a/b/w app.py",
+        "find . -exec rm {} ;", "find . -execdir rm {} +", "find . -delete", "find . '-delete'", "find . -fprint out",
+        "find . -ok rm {} ;", "awk '{print > \"f\"}' app.py", "awk '{print | \"sh\"}' app.py",
+        "awk '{system(\"rm x\")}' app.py", "awk -f prog.awk app.py", "awk -i inplace '{print}' app.py",
+        "sort -o out f", "sort -uo out f", "sort --output=out f", "uniq in out",
+        "git branch new", "git branch -D main", "git branch -m a b", "git fetch origin main:main",
+        "git fetch --upload-pack=x origin", "ls | tee out", "echo x > app.py", "cat $(touch x)", "cat `touch x`",
+        "X=1 touch app.py", "X=/a; touch $X",
+        # QA review of #112: escapes, $'…' and comments must not hide a separator
+        "echo \\'; touch app.py; echo \\'", "ls # it's\ntouch app.py\ngit status # don't",
+        "echo $'\\'' ; touch app.py ; echo 'z'", 'echo \\" ; touch app.py ; echo "x"',
+        "sed -n 1p app.py '-i'", "sed -n 1p app.py ''-i", "sed -n 1p app.py {-i,}", "sed -n $p wiki.md",
+        "uniq -- -in -out", "git branch --contains --set-upstream-to=origin/x", "git branch --contains '--unset-upstream'",
+        "git fetch --set-upstream origin", "git fetch --stdin origin", "awk '@include \"inplace\"\n1' app.py",
+        "cat <(touch x)",
+        # QA round 2: heredoc bodies, options split by quotes or a backslash, $'…' operands
+        "cat <<ls\nls '\nls\ntouch app.py\nls '", 'cat <<ls\nls "\ntouch app.py\nls "',
+        'find . -de""lete', "find . -\\delete", "find . -exe''c rm {} +", "sort f -\\o x", 'sort f -"o" x',
+        "git fetch --\"upload-pack\"='touch P; git-upload-pack' .", 'git fetch -""-set-upstream origin',
+        "git fetch -\\u origin", "sed -n 1p app.py $'-i'", "sed -n 1p a $'\\x2di'",
+        # QA round 3: --no-list or an option value undoes --list; expansions rebuild an option
+        "git branch --list --no-list -D newb", "git branch -l --no-l -M a b", "git branch --format -l -D x",
+        "git branch --sort -l newb", "find sub -de$@lete", 'find sub -de$""lete', 'sed -n 1p f $"-i"',
+        "find .$IFS-delete", "sed -n 1p f ${X:--i}", "uniq a${IFS:0:1}b",
+        # QA round 4: braces spell an option; a variable after literal text
+        "find sub -{delete,print}", "sort -{o,s} g g", "find sub -{exec,print} rm {} +",
+        'find sub "-de"$X', "find sub '-de'$X", 'find sub -de"$X"', 'sed -n 2p f -"$X"',
+        "OLDPWD=-delete; find sub ~-", "PWD=-delete; find sub ~+", "PWD=-delete; find sub ~0",
+        "git -C {.,commit,--allow-empty,-m} log", "git -C {.,-c,core.fsmonitor=touch${IFS}P} status",
+        'X=" commit -m"; git -C .$X log', "git fetch origin a$X", "git branch -{d,D} x",
+    ]
+
+    def test_read_only_table(self):
+        """Reads pass on a non-writing step, a done card and an intake card; writes do not (#112)."""
+        run = lambda c: self.run_gate("Bash", cwd=self.wt, command=c)
+        self.state({"current": "plan", "steps": STEPS})
+        for c in self.READS:
+            self.assertIsNone(run(c), c)
+        for c in self.WRITES:
+            self.assertIn("does not write code", run(c) or "", c)
+        self.state({"current": "done", "steps": STEPS})
+        self.assertIsNone(run(self.READS[0]))
+        self.assertIn("Card is done", run(self.WRITES[0]))
+        os.remove(os.path.join(self.card, "state.json"))
+        self.assertIsNone(run(self.READS[0]))
+        self.assertIn("no workflow yet", run(self.WRITES[0]))
+
+    def test_declared_test_command_with_quoted_pipe(self):
+        self.state({"current": "plan", "steps": STEPS})
+        repos = os.path.join(self.tmp, "repos.yaml")
+        write(repos, "repos:\n  clone:\n    path: x\n    test: python3 -I -m unittest\n")
+        with mock.patch.dict(os.environ, {"BUREAU_REPOS": repos}):
+            self.assertIsNone(self.run_gate("Bash", cwd=self.wt, command='python3 -I -m unittest -k "a|b" | tail -3'))
 
     def test_desk_state_commands_allowed_from_worktree_cwd(self):
         self.state({"current": "plan", "steps": STEPS})

@@ -21,21 +21,59 @@ import sessions
 import worktree
 
 WT = rules.WT
-ABS_WT = re.compile(r"(\S*?/desk/\S+?)/worktrees/([^/\s\"']+)")
-REL_WT = re.compile(r"worktrees/([^/\s\"']+)")
+ABS_WT = re.compile(r"(\S*?/desk/\S+?)/worktrees/([^/\s\"';|&)]+)")  # a repo name ends at a shell separator
+REL_WT = re.compile(r"worktrees/([^/\s\"';|&)]+)")
+GIT_C = r"""(-C\s+("?\$(\w+|\{\w+\})"?|[^\s{$]+)\s+)?"""  # a dir, not a brace list: -C {.,commit} log commits
+SED_ADDR = r"(\d+|\$|/(?:[^/\\']|\\.)*/)"
+OPERAND = r"\s+['\"]?[\w./~$]\S*"  # a file, never a literal option: not -i, '-i', ''-i or {-i,} ($X: README limits)
 READ_ONLY = re.compile(
-    r"^\s*(ls|cat|rg|grep|head|tail|wc|pwd|cd|echo|git\s+(-C\s+\S+\s+)?(status|log|diff|show|grep|rev-parse|ls-files))\b"
+    r"^\s*(ls|cat|rg|grep|head|tail|wc|pwd|cd|echo|cut|tr|nl|diff|jq|sort|find|gh\s+pr\s+(view|diff|checks)"
+    rf"|git\s+{GIT_C}(status|log|diff|show|grep|rev-parse|ls-files|merge-base|blame|cat-file|fetch|worktree\s+list))\b"
+    rf"|^\s*git\s+{GIT_C}branch(\s+(-[arlv]|-vv|--(all|remotes|list|verbose|show-current)"
+    r"|--(contains|merged|no-merged|points-at)((=|\s+)[\w./~^@]\S*)?))*\s*$"  # listing only: a name creates a branch
+    rf"|^\s*sed\s+-n\s+('{SED_ADDR}(,{SED_ADDR})?p'|\d+(,\d+)?p)({OPERAND})*\s*$"  # print-only; bash expands a bare $
+    rf"|^\s*awk(\s+-[Fv]\s*\S+)*\s+'(?![^']*(system|getline))[^'>|@]*'({OPERAND})*\s*$"  # no output, pipe, command, @include
+    rf"|^\s*uniq(\s+-[\w-]*\w)*({OPERAND})?\s*$"  # a second operand is the output file
+    r"|^\s*[A-Za-z_]\w*=(?:'[^']*'|\"[^\"]*\"|[^\s'\"])*\s*$"  # a lone `X=/path` segment
     r"|^\s*python3?\s+\S*/hooks/rules\.py\b"  # the rules loader must run before any write is allowed
     r"|^\s*python3?\s+\S*/scripts/worktree\.py\b"  # creates the worktree itself
 )
-UNSAFE = re.compile(r"[>`]|\$\(")  # redirects and substitutions can write from a "read-only" command
-QUOTED = re.compile(r"""'[^']*'|"(?:[^"\\]|\\.)*\"""")
+WRITES = re.compile(  # write options of commands READ_ONLY allows by name
+    r"^\s*find\b.*(?<![\w-])-(exec|ok|delete|fprint|fls)"
+    r"|^\s*sort\b.*(?<![\w-])(-[a-zA-Z]*o|--[oc])"
+    rf"|^\s*git\s+{GIT_C}fetch\b.*(:|--[us]|(?<![\w-])-u)"  # a:b, --stdin and --set-upstream write; --upload-pack runs
+)
+UNSAFE = re.compile(  # redirects and substitutions can write from a "read-only" command; on plain() text
+    r"[>`]|[$<]\(|(?<!<)<<(?!<)|\$'")  # a heredoc body has no quoting to mask; $'…' can spell an option
+QUOTED = re.compile(  # what bash reads as one inert unit, scanned left to right: \x, $'…', '…', "…", a # comment
+    r"""\\.|\$'(?:[^'\\]|\\.)*'|\$"(?:[^"\\]|\\.)*"|'[^']*'|"(?:[^"\\]|\\.)*"|(?<![^\s;|&(])#[^\n]*""")
+OPTION_CMD = re.compile(rf"^\s*(find|sort|sed|awk|uniq|git\s+{GIT_C}(fetch|branch))\b")  # options that write
+WORD_VAR = re.compile(r"""(?:(?<=\s)|(?<=\s"))\$(\w+|\{\w+\})""")  # $X at a word's start: not "-de"$X, $@, ${X:--i}
+BRACES = re.compile(r"\{[^}\s]*(,|\.\.)[^}\s]*\}")  # -{delete,print} spells an option; ${X} and @{1} do not
 HARMLESS_REDIRECT = re.compile(r"\d?>\s*/dev/null|\d?>&\d")
 
 
+def segments(cmd):
+    """The commands of a chain: split on ; | & and newlines outside quotes, so `grep "a\\|b"` stays one."""
+    mask = QUOTED.sub(lambda m: "_" * len(m[0]), cmd)
+    out, start = [], 0
+    for m in re.finditer(r"[;|&\n]+", mask):
+        out.append(cmd[start:m.start()])
+        start = m.end()
+    return [s for s in out + [cmd[start:]] if s.strip()]
+
+
+def reads(seg):
+    if OPTION_CMD.match(seg) and (  # expansions can spell an option there; a $X starting a word is the README's limit
+            "$" in WORD_VAR.sub("", QUOTED.sub(lambda m: m[0] if m[0][0] == '"' else "_", seg))
+            or BRACES.search(QUOTED.sub("_", seg)) or re.search(r"(?<!\S)~[-+\d]", seg)):  # ~-, ~+, ~0 are $OLDPWD/$PWD in bash
+        return False
+    return READ_ONLY.match(seg) and not WRITES.match(re.sub(r"[\\'\"]", "", seg))  # -de""lete is -delete
+
+
 def plain(cmd):
-    """Drop what is inert in quotes: single-quoted text, and <> in double quotes ($( and backticks still run there)."""
-    return QUOTED.sub(lambda m: "''" if m[0][0] == "'" else re.sub(r"[<>]", "", m[0]), cmd)
+    """Drop what is inert: quoted, escaped and commented text, but keep "…" bodies ($( and backticks still run there)."""
+    return QUOTED.sub(lambda m: re.sub(r"[<>]", "", m[0]) if m[0][0] == '"' else "$'" if m[0][:2] in ("$'", '$"') else "''", cmd)
 
 
 def deny(reason):
@@ -74,9 +112,8 @@ def test_allowed(cmd, repo):
     if not prefix.strip():  # an empty prefix would match every segment
         return False
     cmd = HARMLESS_REDIRECT.sub("", cmd)
-    segs = [s for s in re.split(r"[;|&\n]+", cmd) if s.strip()]
     return not UNSAFE.search(plain(cmd)) and all(
-        READ_ONLY.match(s) or re.match(rf"\s*{re.escape(prefix)}(\s|$)", s) for s in segs)
+        reads(s) or re.match(rf"\s*{re.escape(prefix)}(\s|$)", s) for s in segments(cmd))
 
 
 def owner(card, session):
@@ -115,6 +152,9 @@ def check(card, repo, session, cmd=None):
         if s.get("loop") and approved.get(s["id"]) != "done":  # a round's `true` is not the end of the loop
             deny(f"Loop '{s['id']}' has not ended. Only the user ends it, with /approve done.")
     wt = os.path.join(card, "worktrees", repo)
+    if not os.path.isdir(wt):  # a misparsed name would crash rules.digest, and a crashed hook allows the call
+        deny(f"No worktree at {wt}. Create it with python3 {rules.BUREAU}/scripts/worktree.py {card} {repo}, "
+             f"or, if it exists, name its path without quotes or punctuation around it.")
     if load(os.path.join(card, "ack.json")).get(repo) != rules.digest(wt):
         deny(f"Repo rules for '{repo}' are not loaded or changed. Run: python3 {rules.BUREAU}/hooks/rules.py {wt}")
 
@@ -172,8 +212,7 @@ def read_only(cmd, cwd=""):
     if desk_state(cmd, cwd):
         return True
     cmd = HARMLESS_REDIRECT.sub("", cmd)
-    segs = [s for s in re.split(r"[;|&\n]+", cmd) if s.strip()]
-    return not UNSAFE.search(plain(cmd)) and all(READ_ONLY.match(s) for s in segs)
+    return not UNSAFE.search(plain(cmd)) and all(reads(s) for s in segments(cmd))
 
 
 def bash_targets(cmd, cwd):
@@ -182,7 +221,7 @@ def bash_targets(cmd, cwd):
     if m:
         out.add((m["card"], m["repo"]))
     for m in ABS_WT.finditer(cmd):
-        out.add((m[1].lstrip("\"'="), m[2]))
+        out.add((re.split(r"[=\"']", m[1])[-1], m[2]))  # the path after W= / --git-dir= / a quote
     base = card_root(cwd)
     if base:
         out.update((base, m[1]) for m in REL_WT.finditer(cmd))
