@@ -6,7 +6,7 @@ Denies code writes inside desk/<card>/worktrees/<repo>/ unless
    (approvals.json, written only by approve.py), and
 2. the repo's rule files were loaded through rules.py and have not changed since, and
 3. the card is not owned by another session (sessions.py); desk.py state commands obey the same owner check,
-   except `list`, `init` and a lone `doctor` (its only write is git's worktree link repair).
+   except `list`, `next`, `init` and a lone `doctor` (its only write is git's worktree link repair).
 Subagent calls arrive with the same payload (plus agent_id), so they are covered too.
 """
 import json
@@ -213,8 +213,10 @@ def read_only(cmd, cwd=""):
     if desk_state(cmd, cwd):
         return True
     cmd = HARMLESS_REDIRECT.sub("", cmd)
+    segs = segments(cmd)
+    moved = any(re.match(r"\s*cd\b", s) for s in segs)  # desk_state checks the script against the hook's cwd, not the cd'd one
     return not UNSAFE.search(plain(cmd)) and all(
-        reads(s) or (desk_state(s, cwd) or ("",))[0] in DESK_READS for s in segments(cmd))
+        reads(s) or not moved and (desk_state(s, cwd) or ("",))[0] in DESK_READS for s in segs)
 
 
 def bash_targets(cmd, cwd):

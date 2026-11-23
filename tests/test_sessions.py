@@ -205,7 +205,11 @@ class SessionsTest(unittest.TestCase):
                     f"{d} next {c}; touch {c}/x", f"{d} finish {c}; cat {c}/approvals.json",
                     f"{d} next $X; cat {c}/approvals.json", f"{d} next {c} >> {c}/sessions.jsonl"):
             self.assertIsNotNone(self.gate("s2", command=cmd), cmd)
-        self.assertIn("written only", self.gate("s1", command=f"{d} next {c} > {c}/approvals.json"))
+        # a cd makes the relative path name another desk.py than the one checked against the hook's cwd
+        moved = {"tool_name": "Bash", "session_id": "s2", "cwd": LINK,
+                 "tool_input": {"command": f"cd {self.tmp} && python3 scripts/desk.py next {c}"}}
+        self.assertIn("held by session s1", self.hook("gate.py", moved))
+        self.assertIn("written only", self.gate("s1", command=f"{d} next {c} > {c}/approvals.json"))  # last: refreshes s1 to pid 1
 
     def test_mention_does_not_claim(self):
         legacy = os.path.join(self.desk, "OLD-1")
