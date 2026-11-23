@@ -183,6 +183,8 @@ class GateTest(unittest.TestCase):
         "X=/a/b; sed -n 1,5p $X/app.py", 'X="/a b"; ls "$X"',
         "ls # it's fine; really", 'grep -n "a\\"b|c" app.py', "grep a\\|b app.py", "sed -n 1p ./app.py 'b c.py'",
         "uniq -c in", "git branch --merged origin/main",
+        "grep -n '^x$' app.py", "git branch --list 'feat*'", "git branch -l pat", "git branch -r --merged",
+        "cat <<< x",
     ]
     WRITES = [
         "sed -i s/a/b/ app.py", "sed -n 1p -i app.py", "sed -ni 1p app.py", "sed --in-place 1p app.py",
@@ -201,6 +203,11 @@ class GateTest(unittest.TestCase):
         "uniq -- -in -out", "git branch --contains --set-upstream-to=origin/x", "git branch --contains '--unset-upstream'",
         "git fetch --set-upstream origin", "git fetch --stdin origin", "awk '@include \"inplace\"\n1' app.py",
         "cat <(touch x)",
+        # QA round 2: heredoc bodies, options split by quotes or a backslash, $'…' operands
+        "cat <<ls\nls '\nls\ntouch app.py\nls '", 'cat <<ls\nls "\ntouch app.py\nls "',
+        'find . -de""lete', "find . -\\delete", "find . -exe''c rm {} +", "sort f -\\o x", 'sort f -"o" x',
+        "git fetch --\"upload-pack\"='touch P; git-upload-pack' .", 'git fetch -""-set-upstream origin',
+        "git fetch -\\u origin", "sed -n 1p app.py $'-i'", "sed -n 1p a $'\\x2di'",
     ]
 
     def test_read_only_table(self):

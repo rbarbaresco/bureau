@@ -29,7 +29,8 @@ READ_ONLY = re.compile(
     r"^\s*(ls|cat|rg|grep|head|tail|wc|pwd|cd|echo|cut|tr|nl|diff|jq|sort|find|gh\s+pr\s+(view|diff|checks)"
     r"|git\s+(-C\s+\S+\s+)?(status|log|diff|show|grep|rev-parse|ls-files|merge-base|blame|cat-file|fetch|worktree\s+list))\b"
     r"|^\s*git\s+(-C\s+\S+\s+)?branch(\s+(-[arlv]|-vv|--(all|remotes|list|verbose|show-current)"
-    r"|--(contains|merged|no-merged|points-at)(=|\s+)[\w./~^@]\S*))*\s*$"  # listing only: a name creates a branch
+    r"|--(contains|merged|no-merged|points-at)((=|\s+)[\w./~^@]\S*)?))*\s*$"  # listing only: a name creates a branch
+    r"|^\s*git\s+(-C\s+\S+\s+)?branch\b.*\s(-l|--list)(\s|$)"  # git refuses every write mode next to --list
     rf"|^\s*sed\s+-n\s+('{SED_ADDR}(,{SED_ADDR})?p'|\d+(,\d+)?p)({OPERAND})*\s*$"  # print-only; bash expands a bare $
     rf"|^\s*awk(\s+-[Fv]\s*\S+)*\s+'(?![^']*(system|getline))[^'>|@]*'({OPERAND})*\s*$"  # no output, pipe, command, @include
     rf"|^\s*uniq(\s+-[\w-]*\w)*({OPERAND})?\s*$"  # a second operand is the output file
@@ -42,7 +43,8 @@ WRITES = re.compile(  # write options of commands READ_ONLY allows by name
     r"|^\s*sort\b.*(?<![\w-])(-[a-zA-Z]*o|--[oc])"
     r"|^\s*git\s+(-C\s+\S+\s+)?fetch\b.*(:|--[us]|(?<![\w-])-u)"  # a:b, --stdin and --set-upstream write; --upload-pack runs
 )
-UNSAFE = re.compile(r"[>`]|[$<]\(")  # redirects and substitutions can write from a "read-only" command
+UNSAFE = re.compile(  # redirects and substitutions can write from a "read-only" command; on plain() text
+    r"[>`]|[$<]\(|(?<!<)<<(?!<)|\$'")  # a heredoc body has no quoting to mask; $'…' can spell an option
 QUOTED = re.compile(  # what bash reads as one inert unit, scanned left to right: \x, $'…', '…', "…", a # comment
     r"""\\.|\$'(?:[^'\\]|\\.)*'|'[^']*'|"(?:[^"\\]|\\.)*"|(?<![^\s;|&(])#[^\n]*""")
 HARMLESS_REDIRECT = re.compile(r"\d?>\s*/dev/null|\d?>&\d")
@@ -59,12 +61,12 @@ def segments(cmd):
 
 
 def reads(seg):
-    return READ_ONLY.match(seg) and not WRITES.match(seg)
+    return READ_ONLY.match(seg) and not WRITES.match(re.sub(r"[\\'\"]", "", seg))  # -de""lete is -delete
 
 
 def plain(cmd):
     """Drop what is inert: quoted, escaped and commented text, but keep "…" bodies ($( and backticks still run there)."""
-    return QUOTED.sub(lambda m: re.sub(r"[<>]", "", m[0]) if m[0][0] == '"' else "''", cmd)
+    return QUOTED.sub(lambda m: re.sub(r"[<>]", "", m[0]) if m[0][0] == '"' else "$'" if m[0][:2] == "$'" else "''", cmd)
 
 
 def deny(reason):
@@ -144,7 +146,8 @@ def check(card, repo, session, cmd=None):
             deny(f"Loop '{s['id']}' has not ended. Only the user ends it, with /approve done.")
     wt = os.path.join(card, "worktrees", repo)
     if not os.path.isdir(wt):  # a misparsed name would crash rules.digest, and a crashed hook allows the call
-        deny(f"No worktree at {wt}. Name the worktree path on its own, without quotes or punctuation around it.")
+        deny(f"No worktree at {wt}. Create it with python3 {rules.BUREAU}/scripts/worktree.py {card} {repo}, "
+             f"or, if it exists, name its path without quotes or punctuation around it.")
     if load(os.path.join(card, "ack.json")).get(repo) != rules.digest(wt):
         deny(f"Repo rules for '{repo}' are not loaded or changed. Run: python3 {rules.BUREAU}/hooks/rules.py {wt}")
 
