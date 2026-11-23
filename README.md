@@ -213,7 +213,7 @@ Instructions in `AGENTS.md` are a request. Hooks turn the three most important o
 
 If any of those files change, the hash no longer matches and the rules must be loaded again. Subagents run through the same hook.
 
-**3. One session per card.** The same hook (`hooks/gate.py`) denies any edit or non-read-only Bash command on a card that another live session owns, or that has no live owner (run `/work <id>` to take over). See *Card ownership* above.
+**3. One session per card.** The same hook (`hooks/gate.py`) denies any edit or non-read-only Bash command on a card that another live session owns, or that has no live owner (run `/work <id>` to take over). `desk.py list` and `desk.py next` count as read-only, alone or in a chain of read-only commands without a `cd` (after a `cd`, a relative `scripts/desk.py` may be another file). See *Card ownership* above.
 
 **After the last step.** When a card is `done`, the gate denies every code edit in the worktree ("Card is done: no more code changes"). The PR is opened by `scripts/pr.py`, which `/approve` on the `pr` step runs. It pushes the branch without force, opens a draft PR, and refuses a worktree with uncommitted changes, so commit during the code step. In `pr-review`, `/approve` on `reply` runs `scripts/reply.py` instead: it pushes the PR's branch (no force) and posts `reply.json`. With no worktree (triage applied nothing, `fix` skipped) it skips the push and posts to the first `github.com/<owner>/<repo>/pull/<n>` link in `card.md`. In `peer-review`, `/approve` on `review-comments` runs `scripts/post_review.py`: it refuses if the PR's head moved since the draft, then posts `review-comments.json` as one review and records its link.
 
@@ -364,6 +364,7 @@ A child is merged when `gh pr view` says so for the PR link in its `pr.md`; the 
 | "/approve needs exactly one awaiting card owned by this session; found N. Awaiting: … Use /approve <card-id> [done]." | Zero or several cards are waiting for this session: use one of the listed ids (keep `done` if you were ending a loop) |
 | "Card x is held by session …" or "…is held by live session … there is no override" | Another live session owns the card. Close it, then run `/work <card-id>` |
 | "Card x has no live owner session. Run /work x to take over." | The owner ended or died. Run `/work <card-id>` in this session |
+| "approvals.json is written only by the /approve hook; sessions.jsonl only by the session hooks." | A command that names either file is denied unless every part of it is read-only (the commands in the "A read-only command is denied" row, plus `desk.py list` and `desk.py next`). Run the other part as its own command |
 | "Step 'x' does not write code" | The run is not on a build step yet; finish the earlier steps. Non-build steps can still run the read-only commands in the "A read-only command is denied" row |
 | "unknown repo 'x'" | Add it to `repos.yaml` |
 | "repos.yaml not found; create it with: cp …" | Run the `cp` command in the message (see Register your repositories) |
