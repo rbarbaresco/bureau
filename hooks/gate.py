@@ -23,12 +23,13 @@ import worktree
 WT = rules.WT
 ABS_WT = re.compile(r"(\S*?/desk/\S+?)/worktrees/([^/\s\"';|&)]+)")  # a repo name ends at a shell separator
 REL_WT = re.compile(r"worktrees/([^/\s\"';|&)]+)")
+GIT_C = r"""(-C\s+("?\$(\w+|\{\w+\})"?|[^\s{$]+)\s+)?"""  # a dir, not a brace list: -C {.,commit} log commits
 SED_ADDR = r"(\d+|\$|/(?:[^/\\']|\\.)*/)"
 OPERAND = r"\s+['\"]?[\w./~$]\S*"  # a file, never a literal option: not -i, '-i', ''-i or {-i,} ($X: README limits)
 READ_ONLY = re.compile(
     r"^\s*(ls|cat|rg|grep|head|tail|wc|pwd|cd|echo|cut|tr|nl|diff|jq|sort|find|gh\s+pr\s+(view|diff|checks)"
-    r"|git\s+(-C\s+\S+\s+)?(status|log|diff|show|grep|rev-parse|ls-files|merge-base|blame|cat-file|fetch|worktree\s+list))\b"
-    r"|^\s*git\s+(-C\s+\S+\s+)?branch(\s+(-[arlv]|-vv|--(all|remotes|list|verbose|show-current)"
+    rf"|git\s+{GIT_C}(status|log|diff|show|grep|rev-parse|ls-files|merge-base|blame|cat-file|fetch|worktree\s+list))\b"
+    rf"|^\s*git\s+{GIT_C}branch(\s+(-[arlv]|-vv|--(all|remotes|list|verbose|show-current)"
     r"|--(contains|merged|no-merged|points-at)((=|\s+)[\w./~^@]\S*)?))*\s*$"  # listing only: a name creates a branch
     rf"|^\s*sed\s+-n\s+('{SED_ADDR}(,{SED_ADDR})?p'|\d+(,\d+)?p)({OPERAND})*\s*$"  # print-only; bash expands a bare $
     rf"|^\s*awk(\s+-[Fv]\s*\S+)*\s+'(?![^']*(system|getline))[^'>|@]*'({OPERAND})*\s*$"  # no output, pipe, command, @include
@@ -40,13 +41,13 @@ READ_ONLY = re.compile(
 WRITES = re.compile(  # write options of commands READ_ONLY allows by name
     r"^\s*find\b.*(?<![\w-])-(exec|ok|delete|fprint|fls)"
     r"|^\s*sort\b.*(?<![\w-])(-[a-zA-Z]*o|--[oc])"
-    r"|^\s*git\s+(-C\s+\S+\s+)?fetch\b.*(:|--[us]|(?<![\w-])-u)"  # a:b, --stdin and --set-upstream write; --upload-pack runs
+    rf"|^\s*git\s+{GIT_C}fetch\b.*(:|--[us]|(?<![\w-])-u)"  # a:b, --stdin and --set-upstream write; --upload-pack runs
 )
 UNSAFE = re.compile(  # redirects and substitutions can write from a "read-only" command; on plain() text
     r"[>`]|[$<]\(|(?<!<)<<(?!<)|\$'")  # a heredoc body has no quoting to mask; $'…' can spell an option
 QUOTED = re.compile(  # what bash reads as one inert unit, scanned left to right: \x, $'…', '…', "…", a # comment
     r"""\\.|\$'(?:[^'\\]|\\.)*'|\$"(?:[^"\\]|\\.)*"|'[^']*'|"(?:[^"\\]|\\.)*"|(?<![^\s;|&(])#[^\n]*""")
-OPTION_CMD = re.compile(r"^\s*(find|sort|sed|awk|uniq|git\s+(-C\s+\S+\s+)?(fetch|branch))\b")  # options that write
+OPTION_CMD = re.compile(rf"^\s*(find|sort|sed|awk|uniq|git\s+{GIT_C}(fetch|branch))\b")  # options that write
 WORD_VAR = re.compile(r"""(?:(?<=\s)|(?<=\s"))\$(\w+|\{\w+\})""")  # $X at a word's start: not "-de"$X, $@, ${X:--i}
 BRACES = re.compile(r"\{[^}\s]*(,|\.\.)[^}\s]*\}")  # -{delete,print} spells an option; ${X} and @{1} do not
 HARMLESS_REDIRECT = re.compile(r"\d?>\s*/dev/null|\d?>&\d")
@@ -65,7 +66,7 @@ def segments(cmd):
 def reads(seg):
     if OPTION_CMD.match(seg) and (  # expansions can spell an option there; a $X starting a word is the README's limit
             "$" in WORD_VAR.sub("", QUOTED.sub(lambda m: m[0] if m[0][0] == '"' else "_", seg))
-            or BRACES.search(QUOTED.sub("_", seg)) or re.search(r"(?<!\S)~[+-]", seg)):  # ~- is $OLDPWD in bash
+            or BRACES.search(QUOTED.sub("_", seg)) or re.search(r"(?<!\S)~[-+\d]", seg)):  # ~-, ~+, ~0 are $OLDPWD/$PWD in bash
         return False
     return READ_ONLY.match(seg) and not WRITES.match(re.sub(r"[\\'\"]", "", seg))  # -de""lete is -delete
 
