@@ -251,11 +251,19 @@ class TransitionTest(unittest.TestCase):
         self.approve_loop(card, True)
         self.assertIn("Previous:  rounds.round-1.md (kept); write a new rounds.md", self.cli("advance", card))
 
-    def test_cli_reject_prints_next_block_without_previous(self):
+    def test_cli_reject_prints_next_block(self):
         open(os.path.join(self.card, "plan.md"), "w").write("v1")
         out = self.cli("reject", self.card, "plan", "wrong")
         self.assertIn("continuing with plan", out)
-        self.assertNotIn("Previous:", out)
+        self.assertNotIn("Previous:", out)  # reject moves nothing; plan.md is still there
+        os.rename(os.path.join(self.card, "plan.md"), os.path.join(self.card, "plan.v1.md"))
+        self.assertIn("Previous:  plan.v1.md", self.cli("reject", self.card, "plan", "again"))
+
+    def test_previous_names_the_newest_kept_copy(self):
+        for name, t in (("rounds.round-1.md", 100), ("rounds.v1.md", 300), ("rounds.round-2.md", 200)):
+            open(os.path.join(self.card, name), "w").close()
+            os.utime(os.path.join(self.card, name), (t, t))
+        self.assertIn("rounds.v1.md (kept)", desk._previous(self.card, "rounds"))
 
     def test_revise_versions_artifact_and_clears_approval(self):
         open(os.path.join(self.card, "plan.md"), "w").write("v1")

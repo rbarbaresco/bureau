@@ -176,7 +176,7 @@ def _starts(state, step_id):
 
 
 def next_block(card_dir, state):
-    """The human-facing Next block for the state `finish` or `advance` just left; a parent card adds its children."""
+    """The human-facing Next block for the state a transition (`finish`, `advance`, `revise`, `reject`) just left; a parent card adds its children."""
     block = _block(card_dir, state)
     if os.path.exists(os.path.join(card_dir, "tasks.md")):
         import project  # lazy: project imports desk
