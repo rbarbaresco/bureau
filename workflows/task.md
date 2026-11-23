@@ -33,15 +33,16 @@ writes_code: true
 Load the repo rules. Read the code step's artifact and the branch diff (`git diff origin/<base>...HEAD`).
 Find every README, doc and instruction file (`AGENTS.md`/`CLAUDE.md`) the change makes wrong or incomplete, and update it in the same branch, in the repo's own style. Commit before finishing: the `pr` step cannot commit.
 If nothing is stale, edit nothing and write `Docs: none needed, <reason>`.
-Write docs.md: each file updated and why, or the none-needed line. No gate: the human sees these commits at the `pr` gate.
+Write docs.md: each file updated and why, or the none-needed line. No gate: the human sees these commits at the `review` gate.
 End the artifact with `## Open questions`: one numbered item per question, written `Short label: full question, with options and a default if there is a choice (Default: X)`. The label is what the Next block shows. Put statements and assumptions elsewhere in the artifact. Write "none" if there are no questions.
 
 ## review
 persona: qa
-gate: none
+gate: approve
 
 As a read-only subagent, check the diff against the acceptance criteria and plan.md. Write review.md with findings ranked by severity.
 Check docs.md: does the diff leave any README, doc or instruction file stale? Rank a miss as a finding.
+Findings to fix: the human sends the card back to the code step ("Go back"); a clean review is approved as is. Feedback only redoes the review.
 
 ## pr
 persona: staff-engineer

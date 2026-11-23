@@ -34,9 +34,10 @@ End the artifact with `## Open questions`: one numbered item per question, writt
 
 ## review
 persona: qa
-gate: none
+gate: approve
 
 As a read-only subagent, check the diff against the approved list in triage.md and fix.md: missed items, over-applied changes, a commit that answers the wrong comment. Check docs.md: does the diff leave any README, doc or instruction file stale? Rank a miss as a finding. Write review.md with findings ranked by severity.
+Findings to fix: the human sends the card back to the code step ("Go back"); a clean review is approved as is. Feedback only redoes the review.
 
 ## reply
 persona: staff-engineer
