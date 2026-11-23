@@ -221,7 +221,7 @@ If any of those files change, the hash no longer matches and the rules must be l
 
 **What these do not cover.** Be clear about the limits:
 
-- Bash is gated with a read-only allowlist, the `READ_ONLY` pattern in `hooks/gate.py` (it also lets the rules loader and `scripts/worktree.py` run), and `WRITES` denies the write options of commands it allows (`find -delete`, `sort -o`, `git fetch a:b`). A deliberate evasion, such as a script that writes files or an option held in a variable used as a whole word (`X=-i; sed -n 1p $X`), can slip through. In `find`, `sort`, `git`, `sed`, `awk` and `uniq`, any other `$` (`-de$@lete`, `${X:--i}`) is denied.
+- Bash is gated with a read-only allowlist, the `READ_ONLY` pattern in `hooks/gate.py` (it also lets the rules loader and `scripts/worktree.py` run), and `WRITES` denies the write options of commands it allows (`find -delete`, `sort -o`, `git fetch a:b`). A deliberate evasion, such as a script that writes files, can slip through. Two known gaps in `find`, `sort`, `git`, `sed`, `awk` and `uniq`: a variable at the start of a word can hold an option (`X=-i; sed -n 1p $X`), and so can a glob that matches a file named like one. Any other `$` (`-de$@lete`, `"-de"$X`, `${X:--i}`) and brace lists (`-{delete,print}`) are denied there.
 - The agent can edit `state.json`, for example to fake the current step. This protects against skipped steps and forgetfulness, not against a hostile agent.
 - On steps that do not write code, any Bash command outside the allowlist that touches the worktree is denied, except the repo's `test:` command from `repos.yaml`. That command is not sandboxed: any arguments are allowed, and tests can run code and write files in the worktree.
 

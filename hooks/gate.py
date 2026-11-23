@@ -47,7 +47,8 @@ UNSAFE = re.compile(  # redirects and substitutions can write from a "read-only"
 QUOTED = re.compile(  # what bash reads as one inert unit, scanned left to right: \x, $'…', '…', "…", a # comment
     r"""\\.|\$'(?:[^'\\]|\\.)*'|\$"(?:[^"\\]|\\.)*"|'[^']*'|"(?:[^"\\]|\\.)*"|(?<![^\s;|&(])#[^\n]*""")
 OPTION_CMD = re.compile(r"^\s*(find|sort|git|sed|awk|uniq)\b")  # commands with options that write
-WHOLE_VAR = re.compile(r"""(?<![^\s"])\$(\w+|\{\w+\})(?=[/"\s]|$)""")  # $X/f, "$X": not -de$@lete, .$IFS-x, ${X:--i}
+WORD_VAR = re.compile(r"""(?:(?<=\s)|(?<=\s"))\$(\w+|\{\w+\})""")  # $X at a word's start: not "-de"$X, $@, ${X:--i}
+BRACES = re.compile(r"\{[^}\s]*(,|\.\.)[^}\s]*\}")  # -{delete,print} spells an option; ${X} and @{1} do not
 HARMLESS_REDIRECT = re.compile(r"\d?>\s*/dev/null|\d?>&\d")
 
 
@@ -62,8 +63,10 @@ def segments(cmd):
 
 
 def reads(seg):
-    if OPTION_CMD.match(seg) and "$" in WHOLE_VAR.sub("", QUOTED.sub(lambda m: m[0] if m[0][0] == '"' else "", seg)):
-        return False  # an expansion can rebuild an option there; a whole $X operand is the README's known limit
+    if OPTION_CMD.match(seg) and (  # expansions can spell an option there; a $X starting a word is the README's limit
+            "$" in WORD_VAR.sub("", QUOTED.sub(lambda m: m[0] if m[0][0] == '"' else "_", seg))
+            or BRACES.search(QUOTED.sub("_", seg))):
+        return False
     return READ_ONLY.match(seg) and not WRITES.match(re.sub(r"[\\'\"]", "", seg))  # -de""lete is -delete
 
 
