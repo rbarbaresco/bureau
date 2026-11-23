@@ -30,7 +30,6 @@ READ_ONLY = re.compile(
     r"|git\s+(-C\s+\S+\s+)?(status|log|diff|show|grep|rev-parse|ls-files|merge-base|blame|cat-file|fetch|worktree\s+list))\b"
     r"|^\s*git\s+(-C\s+\S+\s+)?branch(\s+(-[arlv]|-vv|--(all|remotes|list|verbose|show-current)"
     r"|--(contains|merged|no-merged|points-at)((=|\s+)[\w./~^@]\S*)?))*\s*$"  # listing only: a name creates a branch
-    r"|^\s*git\s+(-C\s+\S+\s+)?branch\b.*\s(-l|--list)(\s|$)"  # git refuses every write mode next to --list
     rf"|^\s*sed\s+-n\s+('{SED_ADDR}(,{SED_ADDR})?p'|\d+(,\d+)?p)({OPERAND})*\s*$"  # print-only; bash expands a bare $
     rf"|^\s*awk(\s+-[Fv]\s*\S+)*\s+'(?![^']*(system|getline))[^'>|@]*'({OPERAND})*\s*$"  # no output, pipe, command, @include
     rf"|^\s*uniq(\s+-[\w-]*\w)*({OPERAND})?\s*$"  # a second operand is the output file
@@ -46,7 +45,9 @@ WRITES = re.compile(  # write options of commands READ_ONLY allows by name
 UNSAFE = re.compile(  # redirects and substitutions can write from a "read-only" command; on plain() text
     r"[>`]|[$<]\(|(?<!<)<<(?!<)|\$'")  # a heredoc body has no quoting to mask; $'…' can spell an option
 QUOTED = re.compile(  # what bash reads as one inert unit, scanned left to right: \x, $'…', '…', "…", a # comment
-    r"""\\.|\$'(?:[^'\\]|\\.)*'|'[^']*'|"(?:[^"\\]|\\.)*"|(?<![^\s;|&(])#[^\n]*""")
+    r"""\\.|\$'(?:[^'\\]|\\.)*'|\$"(?:[^"\\]|\\.)*"|'[^']*'|"(?:[^"\\]|\\.)*"|(?<![^\s;|&(])#[^\n]*""")
+OPTION_CMD = re.compile(r"^\s*(find|sort|git|sed|awk|uniq)\b")  # commands with options that write
+WHOLE_VAR = re.compile(r"""(?<![^\s"])\$(\w+|\{\w+\})(?=[/"\s]|$)""")  # $X/f, "$X": not -de$@lete, .$IFS-x, ${X:--i}
 HARMLESS_REDIRECT = re.compile(r"\d?>\s*/dev/null|\d?>&\d")
 
 
@@ -61,12 +62,14 @@ def segments(cmd):
 
 
 def reads(seg):
+    if OPTION_CMD.match(seg) and "$" in WHOLE_VAR.sub("", QUOTED.sub(lambda m: m[0] if m[0][0] == '"' else "", seg)):
+        return False  # an expansion can rebuild an option there; a whole $X operand is the README's known limit
     return READ_ONLY.match(seg) and not WRITES.match(re.sub(r"[\\'\"]", "", seg))  # -de""lete is -delete
 
 
 def plain(cmd):
     """Drop what is inert: quoted, escaped and commented text, but keep "…" bodies ($( and backticks still run there)."""
-    return QUOTED.sub(lambda m: re.sub(r"[<>]", "", m[0]) if m[0][0] == '"' else "$'" if m[0][:2] == "$'" else "''", cmd)
+    return QUOTED.sub(lambda m: re.sub(r"[<>]", "", m[0]) if m[0][0] == '"' else "$'" if m[0][:2] in ("$'", '$"') else "''", cmd)
 
 
 def deny(reason):

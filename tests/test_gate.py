@@ -183,8 +183,8 @@ class GateTest(unittest.TestCase):
         "X=/a/b; sed -n 1,5p $X/app.py", 'X="/a b"; ls "$X"',
         "ls # it's fine; really", 'grep -n "a\\"b|c" app.py', "grep a\\|b app.py", "sed -n 1p ./app.py 'b c.py'",
         "uniq -c in", "git branch --merged origin/main",
-        "grep -n '^x$' app.py", "git branch --list 'feat*'", "git branch -l pat", "git branch -r --merged",
-        "cat <<< x",
+        "grep -n '^x$' app.py", "git branch -r --merged", "cat <<< x", 'grep -n "can\'t$" app.py',
+        "X=/a; git -C $X log", 'X=/a; sed -n 1p "$X/app.py"', "find ${X}/src -name '*.py'",
     ]
     WRITES = [
         "sed -i s/a/b/ app.py", "sed -n 1p -i app.py", "sed -ni 1p app.py", "sed --in-place 1p app.py",
@@ -208,6 +208,10 @@ class GateTest(unittest.TestCase):
         'find . -de""lete', "find . -\\delete", "find . -exe''c rm {} +", "sort f -\\o x", 'sort f -"o" x',
         "git fetch --\"upload-pack\"='touch P; git-upload-pack' .", 'git fetch -""-set-upstream origin',
         "git fetch -\\u origin", "sed -n 1p app.py $'-i'", "sed -n 1p a $'\\x2di'",
+        # QA round 3: --no-list or an option value undoes --list; expansions rebuild an option
+        "git branch --list --no-list -D newb", "git branch -l --no-l -M a b", "git branch --format -l -D x",
+        "git branch --sort -l newb", "find sub -de$@lete", 'find sub -de$""lete', 'sed -n 1p f $"-i"',
+        "find .$IFS-delete", "sed -n 1p f ${X:--i}", "uniq a${IFS:0:1}b",
     ]
 
     def test_read_only_table(self):
