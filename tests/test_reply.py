@@ -9,11 +9,15 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REPLY = os.path.join(ROOT, "scripts", "reply.py")
 WORKTREE = os.path.join(ROOT, "scripts", "worktree.py")
 STEPS = [{"id": "fix", "gate": "approve", "writes_code": True}, {"id": "reply", "gate": "approve"}]
-# stand-in for `gh`: answers the two lookups, logs every other call (args, then stdin) to $T/calls
+# stand-in for `gh`: answers the two lookups, logs every other call (args, then stdin) to $T/calls;
+# `pr comment` first fails $FAILS times with $ERR on stderr, counting every call in $T/n
 FAKE_GH = """#!/bin/sh
 case "$1 $2" in
   "pr view") echo 7 ;;
   "repo view") echo o/r ;;
+  "pr comment") n=$(cat "$T/n" 2>/dev/null || echo 0); echo $((n + 1)) > "$T/n"
+     if [ "$n" -lt "${FAILS:-0}" ]; then echo "$ERR" >&2; exit 1; fi
+     echo "$@" >> "$T/calls"; cat >> "$T/calls" ;;
   *) case "$*" in *FAIL*) [ -f "$T/ok" ] || exit 1 ;; esac
      echo "$@" >> "$T/calls"; [ "$1 $2" = "pr comment" ] && cat >> "$T/calls" ;;
 esac
@@ -61,8 +65,8 @@ class ReplyTest(unittest.TestCase):
     def approve(self, **a):
         write(os.path.join(self.card, "approvals.json"), json.dumps(a))
 
-    def run_reply(self):
-        env = {**os.environ, "PATH": self.bin + os.pathsep + os.environ["PATH"], "T": self.tmp}
+    def run_reply(self, **extra):
+        env = {**os.environ, "PATH": self.bin + os.pathsep + os.environ["PATH"], "T": self.tmp, **extra}
         return subprocess.run([sys.executable, REPLY, self.card], env=env, capture_output=True, text=True)
 
     def calls(self):
@@ -84,6 +88,17 @@ class ReplyTest(unittest.TestCase):
         self.run_reply()
         self.run_reply()
         self.assertEqual(self.calls().count("Fixed in abc"), 1)
+
+    def test_post_is_retried_only_when_the_request_was_never_sent(self):
+        r = self.run_reply(FAILS="1", ERR='Post "https://api.github.com/graphql": dial tcp 1.2.3.4:443: i/o timeout')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.calls().count("Thanks all"), 1)
+        os.remove(os.path.join(self.tmp, "n"))
+        write(os.path.join(self.card, "reply.json"), json.dumps([{"in_reply_to": None, "body": "Again"}]))
+        r = self.run_reply(FAILS="1", ERR="read tcp 1.2.3.4:443: connection reset by peer")
+        self.assertNotEqual(r.returncode, 0)  # the comment may already be posted: a retry could post it twice
+        with open(os.path.join(self.tmp, "n")) as f:
+            self.assertEqual(f.read().strip(), "1")
 
     def test_refused_cases(self):
         self.approve()
