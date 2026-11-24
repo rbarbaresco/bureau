@@ -24,7 +24,7 @@ What you get:
 | `/consult` (in plain words: "ask the architect…") | Get a persona's advice on the current card |
 | `/issue` (in plain words: "write an issue for this") | Draft a GitHub issue and file it after you approve |
 | `/tune-voice` | Teach Bureau how you want PRs, replies, issues, ticket comments and documents to read (see [Your voice](#your-voice)) |
-| `/setup-bureau` | Answer a short questionnaire to skip the build gate or let review send the card back on its own (see [Standing settings](#standing-settings)) |
+| `/setup-bureau` | Answer a short questionnaire to skip the build gate, let review send the card back on its own, or comment on known Bureau issues a card hits (see [Standing settings](#standing-settings)) |
 | `scripts/ui.py` | Watch your cards in a read-only browser page |
 | Hooks | Refuse code edits before the gate, the repo rules and card ownership are in place |
 
@@ -142,7 +142,13 @@ At any point, ask in plain words: *"Ask the architect whether this belongs in th
 
 ### Drafting an issue
 
-Describe a problem or an idea ("write an issue for this") and the `issue` skill drafts a GitHub issue in the house style (Problem, then Expected, To verify or Question). It shows you the draft, and files it with `gh` only after you approve.
+Describe a problem or an idea ("write an issue for this") and the `issue` skill drafts a GitHub issue in the house style (a `**Short:**` paragraph of 2–3 lines, Problem, then Expected, To verify or Question). It shows you the draft, and files it with `gh` only after you approve. The short paragraph is what [Bureau's backlog view](#bureaus-own-backlog) reads, so it goes on every issue.
+
+### Bureau's own backlog
+
+Every `/work` overview includes a **Bureau backlog** line: for a card on Bureau itself, the open issues it overlaps; for a card in any repo, the known Bureau limits or planned fixes that bear on it. When Bureau gets in the way during a run (a gate denial, a script that refuses) and an open issue already covers it, the agent works around it, tells you "known limit, see #N", and logs the hit.
+
+`python3 scripts/backlog.py` prints the view: each open issue's number, title, labels and `**Short:**` paragraph (title only when the issue has none), never the full body or comments. It is cached in `desk/backlog.md` and rebuilt with `gh issue list` when it is over a day old; if `gh` fails, the old copy is shown with its age. Hits go to `desk/backlog-hits.jsonl` (issue, card, date, what was hit), and `python3 scripts/backlog.py summary` ranks the open issues by hit count. Both files are under the gitignored `desk/`. `hit` refuses an issue number that is not in the view; with no view at all (offline, never fetched) it logs the hit unchecked and posts nothing. With the `issue_comments` [standing setting](#standing-settings) on, each hit is also posted as a comment on the issue: "Hit again on <card>: <what>" for a card whose only worktree is `bureau`, only the date for any other card, since Bureau's repo may be public.
 
 ### Your voice
 
@@ -152,7 +158,7 @@ Personas decide what a step says. How it sounds is yours: run `/tune-voice` once
 
 ### Standing settings
 
-Two gate decisions you may make the same way on every card can be set once. Type `/setup-bureau` and Bureau answers with a numbered questionnaire, built from `bureau.template.json`: each setting, what it does, lettered options, your current value and a suggestion. Answer with the numbers and letters, any subset:
+Decisions you may make the same way on every card can be set once. Type `/setup-bureau` and Bureau answers with a numbered questionnaire, built from `bureau.template.json`: each setting, what it does, lettered options, your current value and a suggestion. Answer with the numbers and letters, any subset:
 
 ```
 /setup-bureau 1a 2c 3b
@@ -163,6 +169,7 @@ Two gate decisions you may make the same way on every card can be set once. Type
 | Auto-advance from the code step | `build` (or `fix`) has no gate: docs and review run straight after it. The `review` and `pr` gates stay yours | off |
 | Automatic go-back from review | When review's `Highest severity:` line is at or above the level you pick, `desk.py finish` sends the card back to the code step itself, recorded as `reject-N.md` with `auto:`. Below it, or with this off, review stops at its gate as usual | off |
 | Automatic go-back rounds | How many automatic go-backs before review stops at its gate for you | 4 |
+| Comment on known Bureau issues | Each [backlog](#bureaus-own-backlog) hit is also posted as a comment on the issue: your standing approval for that one kind of tracker write. The local count runs either way | off |
 
 The answers go to `bureau.json` at the Bureau root (gitignored). Only the `UserPromptSubmit` hook `hooks/setup.py` writes it, from the line you type; the gate hook denies the agent's own writes. A card copies the settings into its `state.json` when it starts, so a change applies to new cards only, and `workflow.py show` marks an auto-advanced gate `none (auto)`. With go-back on, the Next block's `Auto:` row shows the round right after an automatic go-back (`go-back, review found medium (round 1 of 4)`), and at the review and pr gates the rounds used of the limit and why it stopped: `clean review`, `below <threshold>` or `limit reached`.
 
@@ -362,6 +369,7 @@ A child is merged when `gh pr view` says so for the PR link in its `pr.md`; the 
 | `scripts/trial.py` | Makes a detached checkout of a Bureau branch, PR or commit on your real `desk/` and `repos.yaml` (see [Try a Bureau branch](#try-a-bureau-branch-or-pr-before-it-is-merged)) |
 | `scripts/archive.py` | Moves a `done` card to `desk/.archive/` and removes its worktrees; refuses dirty or unpushed ones unless `--force` |
 | `scripts/voice_samples.py` | For `/tune-voice`: extracts the messages you typed in past Claude Code sessions, with the draft each answered |
+| `scripts/backlog.py` | Bureau's open issues as a short view for `/work`; logs and ranks hits on them (see [Bureau's own backlog](#bureaus-own-backlog)) |
 | `scripts/ui.py` | Read-only card viewer (see [Viewing cards](#viewing-cards)) |
 | `workflows/`, `steps/`, `personas/` | The shipped workflows, the step catalogue and personas, yours to extend |
 | `AGENTS.md` | Base rules loaded for every card |

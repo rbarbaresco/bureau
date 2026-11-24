@@ -8,8 +8,9 @@ description: Draft, and after approval file, a GitHub issue for Bureau or anothe
 An issue is a work artifact: one reader who has the context, picking it up later. Write the summary, not the case.
 
 1. **Repo.** The one the user names, else the current repo (`gh repo view --json nameWithOwner`). If the issue is about code, read the files it points at so the problem cites real paths (`file:line`), not "the permission system".
-2. **Template.** Propose this one; do not go looking for another. Body: **Problem**, then one of **Expected** (a change is clear), **To verify** (a suspicion), or **Question** (a decision is needed). One label from `gh label list` (`bug`, `enhancement`, `question`, `documentation`). Keep it short.
+2. **Template.** Propose this one; do not go looking for another. Body: a `**Short:**` paragraph, **Problem**, then one of **Expected** (a change is clear), **To verify** (a suspicion), or **Question** (a decision is needed). One label from `gh label list` (`bug`, `enhancement`, `question`, `documentation`). Keep it short.
 3. **Write the draft.**
+   - Open the body with a `**Short:**` paragraph: 2–3 lines saying the problem and the outcome wanted, then a blank line. Bureau's backlog view (`scripts/backlog.py`) reads only this paragraph.
    - Problem: what happens, where, and why it matters, in a few sentences. Quote exact error text.
    - Expected, To verify or Question: the outcome wanted, not a design. If the user has a design, give it one line and name the open choice.
    - Skip proposal tables, acceptance-criteria lists and scope sections unless the user asks. Evidence (commands, logs, long lists) goes in a first comment, with one pointer from the body.
