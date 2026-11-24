@@ -53,9 +53,9 @@ class GateTest(unittest.TestCase):
         subprocess.run([sys.executable, os.path.join(ROOT, "hooks", "rules.py"), self.wt],
                        check=True, capture_output=True)
 
-    def run_gate(self, tool, cwd=None, **inp):
+    def run_gate(self, tool, cwd=None, gate=GATE, **inp):
         payload = {"tool_name": tool, "tool_input": inp, "cwd": cwd or self.card}
-        out = subprocess.run([sys.executable, GATE], input=json.dumps(payload),
+        out = subprocess.run([sys.executable, gate], input=json.dumps(payload),
                              capture_output=True, text=True, check=True).stdout
         return json.loads(out)["hookSpecificOutput"]["permissionDecisionReason"] if out else None
 
@@ -274,7 +274,8 @@ class GateTest(unittest.TestCase):
     def test_desk_state_commands_allowed_from_worktree_cwd(self):
         self.state({"current": "plan", "steps": STEPS})
         desk = f"python3 {LINK}/scripts/desk.py"
-        run = lambda c: self.run_gate("Bash", cwd=self.wt, command=c)
+        gate = os.path.join(LINK, "hooks", "gate.py")  # Bureau's path as written must match the script's
+        run = lambda c: self.run_gate("Bash", cwd=self.wt, gate=gate, command=c)
         self.assertIsNone(run(f"{desk} finish {self.card}"))
         self.assertIsNone(run(f"{desk} reject {self.card} plan 'redo'"))
         self.assertIsNotNone(run(f"{desk} finish {self.card}; touch {self.wt}/x"))
@@ -297,6 +298,58 @@ class GateTest(unittest.TestCase):
         other = os.path.join(self.tmp, "other", "scripts", "desk.py")  # unrelated project's desk.py
         write(other, "")
         self.assertIsNotNone(run(f"python3 {other} finish {self.card}"))
+
+    def test_own_scripts_allowed_from_worktree_cwd(self):
+        gate = os.path.join(LINK, "hooks", "gate.py")  # the gate takes Bureau's path as written: LINK, as the commands name it
+        run = lambda c: self.run_gate("Bash", cwd=self.wt, gate=gate, command=c)
+        rel = os.path.relpath(self.card, self.tmp)  # desk/ABC-1, for a cd into tmp
+        desk = mock.patch.dict(os.environ, {"BUREAU_DESK": os.path.dirname(self.card)})
+        desk.start()
+        self.addCleanup(desk.stop)
+        for current in ("plan", "done"):  # a step that writes no code, and a finished card
+            self.state({"current": current, "steps": STEPS})
+            for script in ("pr.py", "reply.py", "post_review.py", "archive.py --force"):
+                name, _, flag = script.partition(" ")
+                self.assertIsNone(run(f"python3 {LINK}/scripts/{name} {self.card} {flag}"), script)
+            self.assertIsNone(run(f"cd {LINK} && python3 scripts/pr.py {self.card}"))
+            self.assertIsNone(run(f"cd {LINK} && python3 scripts/desk.py advance {self.card}"))
+            self.assertIsNone(run(f"cd {self.tmp} && python3 {LINK}/scripts/pr.py {rel}"))  # card resolved after the cd
+        self.state({"current": "plan", "steps": STEPS})  # denials below come from the step, not from a done card
+        pr = f"python3 {LINK}/scripts/pr.py {self.card}"
+        step = "does not write code"
+        self.assertIn(step, run(f"{pr}; touch {self.wt}/x"))
+        self.assertIn(step, run(f"{pr} > {self.wt}/x"))
+        self.assertIn(step, run(f'{pr} "$(touch {self.wt}/x)"'))
+        self.assertIn(step, run(f"{pr} {self.wt}"))  # second argument
+        self.assertIsNotNone(run(f"python3 {LINK}/scripts/pr.py {self.wt}"))  # card argument inside the worktree
+        self.assertIsNotNone(run(f"cd $B && python3 scripts/pr.py {self.card}"))
+        self.assertIsNotNone(run(f"cd {self.wt} && python3 {LINK}/scripts/pr.py ."))
+        # bash's cd drops `..` as text, realpath follows the symlink first: L/.. is lp for bash, the Bureau root for realpath
+        lp = os.path.join(self.tmp, "lp")
+        os.makedirs(lp)
+        os.symlink(os.path.join(ROOT, "hooks"), os.path.join(lp, "L"))
+        self.assertIsNotNone(run(f"cd {lp}/L/.. && python3 scripts/pr.py {self.card}"))
+        self.assertIsNotNone(run(f"cd {LINK}/hooks/.. && python3 scripts/desk.py advance {self.card}"))
+        self.assertIsNotNone(run(f"python3 {LINK}/scripts/pr.py {lp}/L/../../desk/ABC-1"))
+        write(os.path.join(self.wt, "scripts", "pr.py"), "")  # a bureau card's worktree has its own copy
+        fix = f"cd {LINK} && python3 scripts/pr.py desk/<card>"
+        self.assertIn(fix, run(f"python3 scripts/pr.py {self.card}"))
+        self.assertIn(fix, run(f"python3 {LINK}/scripts/pr.py desk/ABC-1"))  # card resolved inside the worktree
+        self.assertIn("scripts/desk.py <subcommand> desk/<card>", run(f"cd {self.wt} && python3 scripts/desk.py advance {self.card}"))
+        self.assertIn(step, run("echo x >> scripts/pr.py"))  # a write that names a script gets no hint
+        # links are followed again when the command runs, so a link the gate resolved could be swapped by then
+        os.symlink(LINK, os.path.join(lp, "B"))
+        self.assertIn(fix, run(f"python3 {lp}/B/scripts/pr.py {self.card}"))
+        self.assertIsNotNone(run(f"cd {lp}/B && python3 scripts/pr.py {self.card}"))
+        self.assertIsNotNone(run(f"cd {lp}/B && python3 scripts/desk.py advance {self.card}"))
+        # a card outside the desk can carry its own approval; a linked one names another card's branch
+        fake = os.path.join(self.tmp, "fake", "ABC-2")
+        write(os.path.join(fake, "state.json"), json.dumps({"current": "plan", "awaiting": "pr", "steps": STEPS}))
+        self.assertIn(fix, run(f"python3 {LINK}/scripts/pr.py {fake}"))
+        os.symlink(self.card, os.path.join(self.tmp, "desk", "ABC-9"))
+        self.assertIn(fix, run(f"python3 {LINK}/scripts/pr.py {self.tmp}/desk/ABC-9"))
+        sessions.append(self.card, "claim", "s1", 999999)  # a dead owner: the card must be taken over first
+        self.assertIn("no live owner", run(pr))
 
     def test_rules_loader_runs_before_ack(self):
         cmd = f"python3 {LINK}/hooks/rules.py {self.wt}"
