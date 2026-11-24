@@ -67,7 +67,7 @@ For the current step in `state.json`:
 5. `python3 scripts/desk.py finish desk/<card-id>`.
    - Gate `none`: the step advanced; continue with the next.
    - On `review`, the card's `go_back` setting (`/setup-bureau`) may send it back: `current` is the code step again and
-     the Next block says `continuing with <step>`. Redo that step on the findings in `review.md`, then review again.
+     the Next block says `continuing with <step>` and its `Auto:` row names the round. Redo that step on the findings in `review.md`, then review again.
    - Gated: `awaiting` is set. Summarize the artifact in a few lines with its path, then paste the **Next** block `finish` printed.
      **Stop.** Do not write `approvals.json` and do not call `advance` until the user has approved.
 6. Human outcomes at a gate: `/approve` → the approve skill advances (on a `loop` step it approves the round and the step stays current; `/approve done` ends the loop). Feedback → `python3 scripts/desk.py revise desk/<card-id> '<feedback>'`

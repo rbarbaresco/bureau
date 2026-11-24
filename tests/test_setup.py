@@ -71,7 +71,50 @@ class GoBackTest(unittest.TestCase):
         self.assertEqual(desk.finish(self.card)["awaiting"], "review")
         block = desk.next_block(self.card, desk.load(self.card))
         self.assertIn("Auto:", block)
-        self.assertIn("2 go-backs from review (reject-2.md, reject-3.md)", block)
+        self.assertIn("2 of 2 go-back rounds; stopped: limit reached (reject-2.md, reject-3.md)", block)
+
+    def test_the_block_after_an_auto_go_back_names_the_round(self):
+        self.at_review({"go_back": "medium", "go_back_rounds": "4"}, "high")
+        block = desk.next_block(self.card, desk.finish(self.card))
+        self.assertIn("continuing with build", block)
+        self.assertIn("Auto:      go-back, review found high (round 1 of 4)", block)
+        self.assertEqual(desk.next_block(self.card, desk.load(self.card)), block)  # `next` on resume says the same
+        block = desk.next_block(self.card, desk.reject(self.card, "plan", "human asked"))
+        self.assertNotIn("Auto:", block)
+
+    def test_the_gate_row_names_why_it_stopped(self):
+        for sev, reason in (("none", "clean review"), ("low", "below medium"), ("nit", "below medium")):
+            with self.subTest(sev=sev):
+                self.card = os.path.join(tempfile.mkdtemp(), "ABC-1")
+                self.at_review({"go_back": "medium", "go_back_rounds": "3"}, sev)
+                block = desk.next_block(self.card, desk.finish(self.card))
+                self.assertIn(f"Auto:      0 of 3 go-back rounds; stopped: {reason}\n", block)
+
+    def test_the_pr_gate_shows_the_same_row(self):
+        self.at_review({"go_back": "medium"}, "low")
+        s = desk.load(self.card)
+        s["current"] = s["awaiting"] = "pr"
+        desk.save(self.card, s)
+        self.assertIn("0 of 4 go-back rounds; stopped: below medium", desk.next_block(self.card, s))
+
+    def test_other_gates_show_no_loop_row(self):
+        self.at_review({"go_back": "medium"}, None)
+        s = desk.load(self.card)
+        s["current"] = s["awaiting"] = "plan"
+        desk.save(self.card, s)
+        self.assertNotIn("Auto:", desk.next_block(self.card, s))
+
+    def test_missing_severity_is_the_reason_at_the_pr_gate(self):
+        self.at_review({"go_back": "medium"}, None)
+        s = desk.load(self.card)
+        s["current"] = s["awaiting"] = "pr"
+        desk.save(self.card, s)
+        self.assertIn("0 of 4 go-back rounds; stopped: review.md has no `Highest severity:` line",
+                      desk.next_block(self.card, s))
+
+    def test_off_shows_no_row_without_earlier_auto_rounds(self):
+        self.at_review({"go_back": "off"}, "high")
+        self.assertNotIn("Auto:", desk.next_block(self.card, desk.finish(self.card)))
 
     def test_missing_severity_line_is_named_at_the_gate(self):
         self.at_review({"go_back": "medium"}, None)
