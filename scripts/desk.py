@@ -170,34 +170,54 @@ def _read(path):
         return f.read()
 
 
+def _rejects(card_dir):
+    return sorted((f for f in os.listdir(card_dir) if re.fullmatch(r"reject-\d+\.md", f)), key=lambda f: int(f[7:-3]))
+
+
 def _auto_rejects(card_dir):
-    return sorted((f for f in os.listdir(card_dir) if re.fullmatch(r"reject-\d+\.md", f)
-                   and re.match(r"back to \S+: auto:", _read(os.path.join(card_dir, f)))),
-                  key=lambda f: int(f[7:-3]))
+    return [f for f in _rejects(card_dir) if re.match(r"back to \S+: auto:", _read(os.path.join(card_dir, f)))]
+
+
+def _go_back_status(card_dir, state):
+    """(threshold, review severity, rounds used, round limit, code step) with go_back on, else None (off, or no code step)."""
+    cfg = state.get("settings") or {}
+    at = cfg.get("go_back")
+    code = next((s["id"] for s in state["steps"] if s.get("writes_code")), None)  # peer-review has none
+    if at not in SEVERITIES or not code:
+        return None
+    return at, _severity(card_dir), len(_auto_rejects(card_dir)), int(cfg.get("go_back_rounds", 4)), code
 
 
 def _go_back(card_dir, state):
     """(code step, reason) when the human's go_back setting sends a finished review back on its own, else None."""
-    cfg = state.get("settings") or {}
-    at, sev = cfg.get("go_back"), _severity(card_dir)
-    if at not in SEVERITIES or sev not in SEVERITIES or SEVERITIES.index(sev) < SEVERITIES.index(at):
+    st = _go_back_status(card_dir, state)
+    if not st:
         return None
-    rounds, used = int(cfg.get("go_back_rounds", 4)), len(_auto_rejects(card_dir))
-    code = next((s["id"] for s in state["steps"] if s.get("writes_code")), None)
-    if not code or used >= rounds:
+    at, sev, used, rounds, code = st
+    if sev not in SEVERITIES or SEVERITIES.index(sev) < SEVERITIES.index(at) or used >= rounds:
         return None
     return code, f"auto: review found {sev} (round {used + 1} of {rounds})"
 
 
-def _auto_rows(card_dir, state, step):
-    """At the review and pr gates: the automatic go-backs so far, and a review.md the go_back setting could not read."""
-    rows, auto = "", _auto_rejects(card_dir)
-    if auto:
-        rows += _row("Auto:", f"{len(auto)} go-back{'s' if len(auto) > 1 else ''} from review ({', '.join(auto)})")
-    code = any(s.get("writes_code") for s in state["steps"])  # peer-review's review has nothing to go back to
-    if step == "review" and code and (state.get("settings") or {}).get("go_back") in SEVERITIES and not _severity(card_dir):
-        rows += _row("" if rows else "Auto:", "review.md has no `Highest severity:` line, so it did not go back on its own")
-    return rows
+def _auto_rows(card_dir, state):
+    """At the review and pr gates: with go_back on, rounds used of the limit and why it stopped; else past auto go-backs."""
+    auto = _auto_rejects(card_dir)
+    files = f" ({', '.join(auto)})" if auto else ""
+    st = _go_back_status(card_dir, state)
+    if not st:
+        return _row("Auto:", f"{len(auto)} go-back{'s' if len(auto) > 1 else ''} from review{files}") if auto else ""
+    at, sev, used, rounds, _ = st
+    reason = ("review.md has no `Highest severity:` line" if not sev else "clean review" if sev == "none"
+              else f"below {at}" if SEVERITIES.index(sev) < SEVERITIES.index(at)
+              else "limit reached" if used >= rounds else f"review found {sev}")
+    return _row("Auto:", f"{used} of {rounds} go-back rounds; stopped: {reason}{files}")
+
+
+def _last_auto(card_dir, step):
+    """The Auto row right after an automatic go-back: while the newest reject-N.md is an auto one back to <step>."""
+    rejects = _rejects(card_dir)
+    m = rejects and re.match(r"back to " + re.escape(step) + r": auto: (.*)", _read(os.path.join(card_dir, rejects[-1])))
+    return _row("Auto:", f"go-back, {m[1].strip()}") if m else ""
 
 
 SIDE_EFFECTS = {"pr": "pushes the branch and opens a draft PR, then ",
@@ -273,7 +293,7 @@ def _block(card_dir, state):
         qs = _questions(card_dir, aw)
         return ("Next\n" + where
                 + _row("Review:", os.path.join(card_dir, aw + ".md"))
-                + _auto_rows(card_dir, state, aw)
+                + _auto_rows(card_dir, state)
                 + "".join(_row("Questions:" if i == 0 else "", f"- {q}") for i, q in enumerate(qs))
                 + ("" if qs else _row("Questions:", "none"))
                 + _row("Approve:", f"/approve {cid} -> " + (f"another round of {aw}" if loop else after))
@@ -284,7 +304,8 @@ def _block(card_dir, state):
         ids = _ids(state)
         needed = "merge the draft PR (yours)" if "pr" in ids else "nothing; the PR's author merges" if {"reply", "review-comments"} & set(ids) else "nothing"
         return f"Next\n{where}{_row('Run:', 'none')}{_row('Needed:', needed)}".rstrip("\n")
-    return f"Next\n{where}{_row('Run:', f'none (continuing with {cur})')}{_previous(card_dir, cur)}".rstrip("\n")
+    return (f"Next\n{where}{_row('Run:', f'none (continuing with {cur})')}{_last_auto(card_dir, cur)}"
+            f"{_previous(card_dir, cur)}").rstrip("\n")
 
 
 def _previous(card_dir, step):
