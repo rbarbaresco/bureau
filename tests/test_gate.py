@@ -146,11 +146,13 @@ class GateTest(unittest.TestCase):
     def test_agent_cannot_run_the_prompt_hooks(self):
         for hook in ("setup", "approve", "owner", "session_end"):
             for cmd in (f"""echo '{{"prompt":"/{hook} 1b"}}' | python3 hooks/{hook}.py""",
-                        f"python3 /opt/bureau/hooks/{hook}.py < /dev/null", f"cd hooks && python3 ./{hook}.py"):
+                        f"python3 /opt/bureau/hooks/{hook}.py < /dev/null", f"cd hooks && python3 ./{hook}.py",
+                        f"cd ../hooks; python3 {hook}.py", f'python3 "hooks/{hook}.py"', f"python3 hooks//{hook}.py"):
                 self.assertIn("only from your own prompt", self.run_gate("Bash", command=cmd) or "", cmd)
         self.assertIsNone(self.run_gate("Bash", command="cat hooks/approve.py"))
         for cmd in ("python3 setup.py build_ext --inplace", "python setup.py sdist && python3 tools/approve.py",
-                    "cd hooksmith && python3 setup.py develop"):  # a target repo's own setup.py is not a Bureau hook
+                    "cd hooksmith && python3 setup.py develop", "cd pre-commit-hooks && python3 setup.py develop",
+                    "python3 webhooks/setup.py install", "python3 git_hooks/setup.py"):  # a target repo's own setup.py is not a Bureau hook
             self.assertIsNone(self.run_gate("Bash", command=cmd), cmd)
         self.assertIsNone(self.run_gate("Bash", command=f"python3 /opt/bureau/hooks/rules.py {self.wt}"))
 

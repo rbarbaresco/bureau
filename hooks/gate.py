@@ -52,14 +52,15 @@ WORD_VAR = re.compile(r"""(?:(?<=\s)|(?<=\s"))\$(\w+|\{\w+\})""")  # $X at a wor
 BRACES = re.compile(r"\{[^}\s]*(,|\.\.)[^}\s]*\}")  # -{delete,print} spells an option; ${X} and @{1} do not
 # hooks that write approvals, settings or claims: piping a fake prompt into one would approve the agent's own gate
 PROMPT_HOOK = re.compile(r"\bpython[\d.]*\b[^;&|\n]*?(?<![\w-])((?:\S*/)?)(approve|setup|owner|session_end)\.py\b")
-CD_HOOKS = re.compile(r"\bcd\s+\S*\bhooks/?(?=[\s;&|)]|$)")
+CD_HOOKS = re.compile(r"\bcd\s+(?:\S*/)?hooks/?(?=[\s;&|)]|$)")  # a whole `hooks` segment, not pre-commit-hooks
+HOOKS_DIR = re.compile(r"(?:^|[/\"'])hooks/+$")  # the path's last directory is exactly `hooks`, not webhooks
 
 
 def prompt_hook(cmd):
     """The Bureau prompt hook a command runs (hooks/<name>.py, or ./<name>.py after a cd into hooks), else None.
     A target repo's own setup.py or approve.py elsewhere is not one."""
     for m in PROMPT_HOOK.finditer(cmd):
-        if m[1].rstrip("/").endswith("hooks") or (m[1] in ("", "./") and CD_HOOKS.search(cmd[:m.start()])):
+        if HOOKS_DIR.search(m[1]) or (m[1] in ("", "./") and CD_HOOKS.search(cmd[:m.start()])):
             return m[2]
     return None
 
