@@ -16,4 +16,5 @@ Each step is done only when its test passes. Update the status as you go.
 | 9 | `project` workflow: parent card, child cards from `tasks.md` (#83); splitting an unbroken ticket (#87) is later | unit tests (`test_project.py`, nested gate/approve/archive); no live run with subagents yet | built |
 | 10 | `peer-review` workflow: `/work` picks it for any PR but your own same-repo one; `post_review.py` posts one review after approval (#96) | unit tests (`test_post_review.py`, workflow, Next block, doctor); no post on a real PR yet | built |
 | 11 | Operator voice: `voice:` step field, `/tune-voice`, `voice_samples.py` (#98) | unit tests (`test_voice_samples.py`, workflow, Next block, trial); `/tune-voice` not run end to end yet | built |
-| 12 | Later: Sentry intake, Cursor/Codex adapters | n/a | deferred |
+| 12 | Backlog view: `scripts/backlog.py`, `**Short:**` in the `issue` skill, hits logged, `issue_comments` setting (#129) | unit tests (`test_backlog.py`); live view against real `gh`; no real hit comment posted yet | built |
+| 13 | Later: Sentry intake, Cursor/Codex adapters | n/a | deferred |
