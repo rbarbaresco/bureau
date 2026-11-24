@@ -97,6 +97,21 @@ class GoBackTest(unittest.TestCase):
         desk.save(self.card, s)
         self.assertIn("0 of 4 go-back rounds; stopped: below medium", desk.next_block(self.card, s))
 
+    def test_other_gates_show_no_loop_row(self):
+        self.at_review({"go_back": "medium"}, None)
+        s = desk.load(self.card)
+        s["current"] = s["awaiting"] = "plan"
+        desk.save(self.card, s)
+        self.assertNotIn("Auto:", desk.next_block(self.card, s))
+
+    def test_missing_severity_is_the_reason_at_the_pr_gate(self):
+        self.at_review({"go_back": "medium"}, None)
+        s = desk.load(self.card)
+        s["current"] = s["awaiting"] = "pr"
+        desk.save(self.card, s)
+        self.assertIn("0 of 4 go-back rounds; stopped: review.md has no `Highest severity:` line",
+                      desk.next_block(self.card, s))
+
     def test_off_shows_no_row_without_earlier_auto_rounds(self):
         self.at_review({"go_back": "off"}, "high")
         self.assertNotIn("Auto:", desk.next_block(self.card, desk.finish(self.card)))

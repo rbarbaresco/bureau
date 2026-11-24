@@ -199,11 +199,11 @@ def _go_back(card_dir, state):
     return code, f"auto: review found {sev} (round {used + 1} of {rounds})"
 
 
-def _auto_rows(card_dir, state):
+def _auto_rows(card_dir, state, step):
     """At the review and pr gates: with go_back on, rounds used of the limit and why it stopped; else past auto go-backs."""
     auto = _auto_rejects(card_dir)
     files = f" ({', '.join(auto)})" if auto else ""
-    st = _go_back_status(card_dir, state)
+    st = step in ("review", "pr") and _go_back_status(card_dir, state)  # other gates: no loop to report
     if not st:
         return _row("Auto:", f"{len(auto)} go-back{'s' if len(auto) > 1 else ''} from review{files}") if auto else ""
     at, sev, used, rounds, _ = st
@@ -293,7 +293,7 @@ def _block(card_dir, state):
         qs = _questions(card_dir, aw)
         return ("Next\n" + where
                 + _row("Review:", os.path.join(card_dir, aw + ".md"))
-                + _auto_rows(card_dir, state)
+                + _auto_rows(card_dir, state, aw)
                 + "".join(_row("Questions:" if i == 0 else "", f"- {q}") for i, q in enumerate(qs))
                 + ("" if qs else _row("Questions:", "none"))
                 + _row("Approve:", f"/approve {cid} -> " + (f"another round of {aw}" if loop else after))
