@@ -100,8 +100,9 @@ labels when there are any. A failed or blocked state names the exact command, or
 
 - Tracker writes (comments, status changes, creating issues) need the human's explicit approval first. Opening a PR is approved by `/approve` on the `pr` step (no second confirmation); `scripts/pr.py` opens it as a draft. Posting replies on an existing PR is approved by `/approve` on the `reply` step; `scripts/reply.py` pushes and posts. Posting a review on a PR you review (`peer-review`) is approved by `/approve` on the `review-comments` step; `scripts/post_review.py` posts it, never pushes. Merging is the human's.
 - When Bureau itself gets in the way (a gate denial, a script refusing, a workflow shape it can't run) and the backlog
-  view has a matching issue, work around it as usual, name it to the user ("known limit, see #N"), and log it from the
-  Bureau root: `python3 scripts/backlog.py hit <N> desk/<card-id> '<what was hit>'`. That comments on the issue only if
-  the card's `issue_comments` setting is on. No matching issue: say so; do not file one unasked.
+  view has a matching issue, work around it as usual, name it to the user ("known limit, see #N"), and log it:
+  `python3 scripts/backlog.py hit <N> desk/<card-id> '<what was hit>'`. Run `cd <Bureau root>` as its own command first if
+  the shell may be in a worktree (the gate does not follow a `cd` chained to `backlog.py`). It comments on the issue only
+  if the card's `issue_comments` setting is on. No matching issue: say so; do not file one unasked.
 - Status updates in tracker comments are summaries, not logs. Draft every tracker comment in `voice.md` if it exists, as a `voice: operator` step would.
 - End each reply with where work landed: Bureau path, card folder, worktree and branch, committed or not.

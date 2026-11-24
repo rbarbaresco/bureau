@@ -31,6 +31,10 @@ class ShortTest(unittest.TestCase):
         self.assertEqual(backlog.short("intro\n\n**Short:** late"), "")
         self.assertEqual(backlog.short(None), "")
 
+    def test_stops_at_a_heading_without_a_blank_line(self):
+        self.assertEqual(backlog.short("**Short:** a\n## Problem\nlong"), "a")
+        self.assertEqual(backlog.short("**Short:** a\n**Problem**\nlong"), "a")
+
     def test_capped_at_three_lines(self):
         self.assertEqual(backlog.short("**Short:** a\nb\nc\nd\ne"), "a\nb\nc")
         self.assertLessEqual(len(backlog.short("**Short:** " + "y" * 2000)), 400)
@@ -70,6 +74,16 @@ class ViewTest(unittest.TestCase):
     def test_no_view_and_gh_down_does_not_raise(self):
         with mock.patch.object(subprocess, "run", side_effect=subprocess.TimeoutExpired("gh", 60)):
             self.assertIn("unavailable", backlog.view(self.desk))
+            self.assertIn("unavailable", backlog.summary(self.desk))
+
+    def test_unexpected_json_is_not_cached(self):
+        for bad in ("null", "{}", "[1]"):
+            with mock.patch.object(subprocess, "run", return_value=run_ok(bad)):
+                self.assertIn("unavailable", backlog.view(self.desk))
+            self.assertFalse(os.path.exists(self.path))
+
+    def test_titles_drop_labels(self):
+        self.assertEqual(backlog.titles("x\n#5 A [b] c [bug,enhancement]\n  short\n#6 Plain"), {"5": "A [b] c", "6": "Plain"})
 
 
 class HitTest(unittest.TestCase):
@@ -98,9 +112,26 @@ class HitTest(unittest.TestCase):
     def test_comment_only_when_the_card_setting_is_on(self):
         self.set_comments("on")
         with mock.patch.object(subprocess, "run", return_value=run_ok()) as run:
-            backlog.hit("#111", self.card, "sed -n denied", self.desk)
-        self.assertEqual(run.call_args.args[0],
-                         ["gh", "issue", "comment", "111", "--body", "Hit again on skills-14: sed -n denied"])
+            backlog.hit("#111", self.card, "sed -n denied on private/path", self.desk, today="2026-11-24")
+        self.assertEqual(run.call_args.args[0],  # another repo's card: no card id or free text on Bureau's repo
+                         ["gh", "issue", "comment", "111", "--body", "Hit again (2026-11-24) on a card outside Bureau."])
+        own = os.path.join(self.desk, "bureau-7")
+        desk.init(own, [{"id": "plan", "gate": "approve"}], settings={"issue_comments": "on"})
+        with mock.patch.object(subprocess, "run", return_value=run_ok()) as run:
+            backlog.hit("111", own, "sed -n denied", self.desk)
+        self.assertEqual(run.call_args.args[0][-1], "Hit again on bureau-7: sed -n denied")
+
+    def test_issue_not_in_the_view_is_refused(self):
+        with mock.patch.object(subprocess, "run") as run, self.assertRaises(ValueError):
+            backlog.hit("131", self.card, "x", self.desk)
+        run.assert_not_called()
+        self.assertFalse(os.path.exists(os.path.join(self.desk, "backlog-hits.jsonl")))
+
+    def test_template_offers_the_setting_hit_reads(self):
+        with open(os.path.join(ROOT, "bureau.template.json")) as f:
+            q = next(q for q in json.load(f) if q["key"] == "issue_comments")
+        self.assertEqual([v for v, _ in q["options"]], ["off", "on"])
+        self.assertEqual(q["suggest"], "off")
 
     def test_failed_comment_keeps_the_log_line(self):
         self.set_comments("on")
@@ -114,10 +145,10 @@ class HitTest(unittest.TestCase):
             backlog.hit("111", os.path.join(self.desk, "nope"), "x", self.desk)
 
     def test_summary_ranks_open_issues_and_drops_closed_ones(self):
-        for n in (109, 111, 111, 42):
+        for n in (109, 111, 111):
             backlog.hit(str(n), self.card, "x", self.desk)
         with open(os.path.join(self.desk, "backlog-hits.jsonl"), "a") as f:
-            f.write('{"issue": 1')  # torn line
+            f.write('{"issue": 42, "card": "c"}\n{"issue": 1')  # an issue closed since, and a torn line
         out = backlog.summary(self.desk).splitlines()
         self.assertEqual(out[0], "  2  #111 Gate friction (last: skills-14)")
         self.assertEqual(out[1], "  1  #109 Rethink project (last: skills-14)")
