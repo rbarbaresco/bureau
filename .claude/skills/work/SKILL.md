@@ -25,11 +25,14 @@ When the shell may be in a card worktree (after a code step), run `desk.py`, `pr
 ## 2. Overview (for the human to read)
 
 Before sizing, check the card against the repo as it is now: read the code it points at, `git log` for the area,
-and open or linked PRs/issues. Then, at most ten lines: **Context** (one plain sentence from `card.md` saying what the
+and open or linked PRs/issues. Also run `python3 scripts/backlog.py` (Bureau's own open issues, short versions only).
+Then, at most ten lines: **Context** (one plain sentence from `card.md` saying what the
 card is about and why it was raised, for a reader who hasn't seen the card); **Validity** (`valid`, `real bug`,
 `already fixed`, `stale or partly wrong` (claims don't match the code), `duplicate`, `nitpick` or `unverifiable`, with
 a one-line reason and a file or PR reference); what is asked; acceptance criteria and what is unclear; the likely
-repo(s) from `repos.yaml`; size and risk (auth, data, infra, migrations). Flag anything blocking.
+repo(s) from `repos.yaml`; size and risk (auth, data, infra, migrations); **Bureau backlog** (for a Bureau card, planned
+changes that overlap it; for any card, known Bureau limits or planned fixes that bear on the task, by `#N`; or `none`).
+Flag anything blocking.
 
 If Validity is not `valid` or `real bug`, say so right after Context and stop: the human decides to continue, close the
 card, or fix the card text. Still show the rest of the overview, but do not propose a workflow until they answer. On
@@ -96,5 +99,9 @@ labels when there are any. A failed or blocked state names the exact command, or
 ## Rules
 
 - Tracker writes (comments, status changes, creating issues) need the human's explicit approval first. Opening a PR is approved by `/approve` on the `pr` step (no second confirmation); `scripts/pr.py` opens it as a draft. Posting replies on an existing PR is approved by `/approve` on the `reply` step; `scripts/reply.py` pushes and posts. Posting a review on a PR you review (`peer-review`) is approved by `/approve` on the `review-comments` step; `scripts/post_review.py` posts it, never pushes. Merging is the human's.
+- When Bureau itself gets in the way (a gate denial, a script refusing, a workflow shape it can't run) and the backlog
+  view has a matching issue, work around it as usual, name it to the user ("known limit, see #N"), and log it from the
+  Bureau root: `python3 scripts/backlog.py hit <N> desk/<card-id> '<what was hit>'`. That comments on the issue only if
+  the card's `issue_comments` setting is on. No matching issue: say so; do not file one unasked.
 - Status updates in tracker comments are summaries, not logs. Draft every tracker comment in `voice.md` if it exists, as a `voice: operator` step would.
 - End each reply with where work landed: Bureau path, card folder, worktree and branch, committed or not.
