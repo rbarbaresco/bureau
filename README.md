@@ -164,7 +164,7 @@ Two gate decisions you may make the same way on every card can be set once. Type
 | Automatic go-back from review | When review's `Highest severity:` line is at or above the level you pick, `desk.py finish` sends the card back to the code step itself, recorded as `reject-N.md` with `auto:`. Below it, or with this off, review stops at its gate as usual | off |
 | Automatic go-back rounds | How many automatic go-backs before review stops at its gate for you | 4 |
 
-The answers go to `bureau.json` at the Bureau root (gitignored). Only the `UserPromptSubmit` hook `hooks/setup.py` writes it, from the line you type; the gate hook denies the agent's own writes. A card copies the settings into its `state.json` when it starts, so a change applies to new cards only, and `workflow.py show` marks an auto-advanced gate `none (auto)`. At the review and pr gates, the Next block's `Auto:` row lists the automatic go-backs so far.
+The answers go to `bureau.json` at the Bureau root (gitignored). Only the `UserPromptSubmit` hook `hooks/setup.py` writes it, from the line you type; the gate hook denies the agent's own writes. A card copies the settings into its `state.json` when it starts, so a change applies to new cards only, and `workflow.py show` marks an auto-advanced gate `none (auto)`. With go-back on, the Next block's `Auto:` row shows the round right after an automatic go-back (`go-back, review found medium (round 1 of 4)`), and at the review and pr gates the rounds used of the limit and why it stopped: `clean review`, `below <threshold>` or `limit reached`.
 
 ## How it works
 
