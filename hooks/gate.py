@@ -134,7 +134,8 @@ def check(card, repo, session, cmd=None):
     ids = [s["id"] for s in steps]
     approved = load(os.path.join(card, "approvals.json"))
     if current == "done":
-        deny("Card is done: no more code changes. Open the PR with scripts/pr.py (pr-review cards: scripts/reply.py; peer-review: scripts/post_review.py).")
+        deny(script_hint(cmd) or "Card is done: no more code changes. Open the PR with scripts/pr.py "
+             "(pr-review cards: scripts/reply.py; peer-review: scripts/post_review.py).")
     if not os.path.exists(os.path.join(card, "state.json")):
         deny(f"{card} has no workflow yet (intake is not finished). Confirm a workflow with the user, then run: "
              f"python3 {rules.BUREAU}/scripts/workflow.py start <name> {card}")
@@ -145,7 +146,7 @@ def check(card, repo, session, cmd=None):
     if not steps[idx].get("writes_code"):
         if cmd is not None and test_allowed(cmd, repo):
             return
-        deny(f"Step '{current}' does not write code. Move to a build step first.")
+        deny(script_hint(cmd) or f"Step '{current}' does not write code. Move to a build step first.")
     for s in steps[:idx]:
         if s.get("gate", "none") != "none" and not approved.get(s["id"]):
             deny(f"Gate '{s['id']}' is not approved. Ask the user to run /approve before any code is written.")
@@ -159,22 +160,70 @@ def check(card, repo, session, cmd=None):
         deny(f"Repo rules for '{repo}' are not loaded or changed. Run: python3 {rules.BUREAU}/hooks/rules.py {wt}")
 
 
+CD = r"(?:[ \t]*cd[ \t]+(?P<dir>/[\w./-]*)[ \t]*&&)?"  # one literal absolute `cd` first: paths resolve from there
 DESK = re.compile(  # bare words and single-quoted text only: nothing for bash to expand, split or comment out
-    r"[ \t]*python3?[ \t]+(?P<script>[\w./][\w./-]*)[ \t]+(?P<sub>init|list|doctor|finish|advance|revise|reject|add|skip|next)"
+    CD + r"[ \t]*python3?[ \t]+(?P<script>[\w./][\w./-]*)[ \t]+(?P<sub>init|list|doctor|finish|advance|revise|reject|add|skip|next)"
     r"(?:[ \t]+(?P<card>[\w./-]+)(?:[ \t]+(?:'[^']*'|[\w.-]+))*)?[ \t]*")
 DESK_READS = ("list", "next")  # print card state, change nothing: read-only in a chain and on any session's card
 
 
 def desk_state(cmd, cwd):
-    """One invocation of Bureau's own desk.py (by real path) on a card path outside any worktree: card state only.
+    """One invocation of Bureau's own desk.py (by its path) on a card path outside any worktree: card state only.
     Returns (subcommand, card dir), or None."""
     m = DESK.fullmatch(cmd)
     if not m:
         return None
-    if os.path.realpath(os.path.join(cwd, m["script"])) != os.path.join(os.path.realpath(rules.BUREAU), "scripts", "desk.py"):
+    paths = resolve(m, cwd)
+    if not paths or not in_bureau(paths[0], "scripts", "desk.py"):
         return None
-    card = os.path.realpath(os.path.join(cwd, m["card"] or ""))
+    card = os.path.realpath(paths[1])
     return None if WT.match(card + "/") else (m["sub"], card)
+
+
+def resolve(m, cwd):
+    """A DESK/OWN_RUN match's script and card paths as written (no `..`, no symlinks followed), or None. bash and python
+    follow links again when the command runs, so a link resolved here could be swapped; `..` is dropped as text by bash."""
+    if any(".." in (p or "").split("/") for p in (m["dir"], m["script"], m["card"])):
+        return None
+    base = m["dir"] or cwd
+    return os.path.normpath(os.path.join(base, m["script"])), os.path.normpath(os.path.join(base, m["card"] or ""))
+
+
+def in_bureau(path, *parts):
+    """`path`, as written, is Bureau's own <parts> (under Bureau's path as the hook was run, or its real path)."""
+    return path in {os.path.join(b, *parts) for b in (rules.BUREAU, os.path.realpath(rules.BUREAU))}
+
+
+OWN = ("pr.py", "reply.py", "archive.py", "post_review.py")
+OWN_RUN = re.compile(CD + r"[ \t]*python3?[ \t]+(?P<script>[\w./][\w./-]*)[ \t]+(?P<card>[\w./-]+)"
+                     r"(?:[ \t]+--force)?[ \t]*")  # only archive.py takes --force; the others reject a second argument
+
+
+def own_script(cmd, cwd):
+    """One run of Bureau's own pr/reply/archive/post_review.py (by its path) on a real card folder directly under the desk.
+    Each checks its own step and approval, so the shell's worktree is not a target (#86, #74). Returns the card dir, or None.
+    A card elsewhere could carry a forged approval; a linked one could name another card's branch (pr.py uses basename)."""
+    m = OWN_RUN.fullmatch(cmd)
+    if not m:
+        return None
+    paths = resolve(m, cwd)
+    if not paths or not any(in_bureau(paths[0], "scripts", n) for n in OWN):
+        return None
+    card, desk = paths[1], sessions.DESK
+    if os.path.dirname(card) not in (desk, os.path.realpath(desk)) or not re.fullmatch(r"[\w.-]+", os.path.basename(card)):
+        return None
+    real = os.path.realpath(card)  # the folder itself is no link
+    return real if real == os.path.join(os.path.realpath(desk), os.path.basename(card)) else None
+
+
+def script_hint(cmd):
+    """One Bureau script call that did not pass: from a worktree its relative paths name the worktree's files."""
+    m = cmd and (OWN_RUN.fullmatch(cmd) or DESK.fullmatch(cmd))  # one script call, not a chain or a redirect
+    name = m and os.path.basename(m["script"])
+    args = "<subcommand> desk/<card>" if name == "desk.py" else "desk/<card>"
+    return name in (*OWN, "desk.py") and (
+        f"Bureau's scripts pass the gate only as Bureau's own copy on a card folder under desk/, with no `..` or links. "
+        f"Run it as: cd {rules.BUREAU} && python3 scripts/{name} {args} ...")
 
 
 NEW = re.compile(  # the whole command, bare words and single-quoted text only: a mention in echo/grep/git is not a start
@@ -263,6 +312,10 @@ def main():
             owner(card, session)
         if "approvals.json" in cmd or "sessions.jsonl" in cmd:
             deny("approvals.json is written only by the /approve hook; sessions.jsonl only by the session hooks.")
+        own = own_script(cmd, cwd)
+        if own:  # after a cd, a relative card is not among named_cards
+            owner(own, session)
+            return
         for card, repo in sorted(bash_targets(cmd, cwd)):
             check(card, repo, session, cmd)
 
