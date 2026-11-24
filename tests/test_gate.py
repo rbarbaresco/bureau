@@ -138,6 +138,32 @@ class GateTest(unittest.TestCase):
         self.assertIn("approve hook", self.run_gate("Write", file_path=os.path.join(self.card, "approvals.json")))
         self.assertIn("approve hook", self.run_gate("Bash", command=f"echo '{{}}' > {self.card}/approvals.json"))
 
+    def test_agent_cannot_write_bureau_settings(self):
+        self.assertIn("/setup-bureau", self.run_gate("Write", file_path=os.path.join(self.tmp, "bureau.json")))
+        self.assertIn("/setup-bureau", self.run_gate("Bash", command=f"echo '{{}}' > {self.tmp}/bureau.json"))
+        self.assertIsNone(self.run_gate("Bash", command=f"cat {self.tmp}/bureau.json"))
+
+    def test_agent_cannot_run_the_prompt_hooks(self):
+        for hook in ("setup", "approve", "owner", "session_end"):
+            for cmd in (f"""echo '{{"prompt":"/{hook} 1b"}}' | python3 hooks/{hook}.py""",
+                        f"python3 /opt/bureau/hooks/{hook}.py < /dev/null", f"cd hooks && python3 ./{hook}.py",
+                        f"cd ../hooks; python3 {hook}.py", f'python3 "hooks/{hook}.py"', f"python3 hooks//{hook}.py"):
+                self.assertIn("only from your own prompt", self.run_gate("Bash", command=cmd) or "", cmd)
+        self.assertIsNone(self.run_gate("Bash", command="cat hooks/approve.py"))
+        for cmd in ("python3 setup.py build_ext --inplace", "python setup.py sdist && python3 tools/approve.py",
+                    "cd hooksmith && python3 setup.py develop", "cd pre-commit-hooks && python3 setup.py develop",
+                    "python3 webhooks/setup.py install", "python3 git_hooks/setup.py"):  # a target repo's own setup.py is not a Bureau hook
+            self.assertIsNone(self.run_gate("Bash", command=cmd), cmd)
+        self.assertIsNone(self.run_gate("Bash", command=f"python3 /opt/bureau/hooks/rules.py {self.wt}"))
+
+    def test_docs_allowed_after_an_auto_advanced_build(self):
+        steps = [STEPS[0], {**STEPS[1], "gate": "none", "auto": True}, {"id": "docs", "gate": "none", "writes_code": True},
+                 {"id": "pr", "gate": "approve"}]
+        self.state({"current": "docs", "steps": steps})
+        self.approve("plan")
+        self.ack()
+        self.assertIsNone(self.edit())
+
     def test_bash_write_denied_read_only_allowed(self):
         self.assertIsNotNone(self.run_gate("Bash", command=f"sed -i s/a/b/ {self.wt}/app.py"))
         self.assertIsNotNone(self.run_gate("Bash", command=f"cat {self.wt}/a > {self.wt}/b"))

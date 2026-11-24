@@ -1,0 +1,14 @@
+[
+  {"key": "auto_advance", "title": "Auto-advance from the code step",
+   "does": "When on, build (or fix) finishes without stopping for /approve; docs and review run straight after. The review and pr gates stay yours.",
+   "options": [["off", "stop after build for /approve (today)"], ["on", "go straight on to docs and review"]],
+   "suggest": "off"},
+  {"key": "go_back", "title": "Automatic go-back from review",
+   "does": "When review finds something this severe or worse, the card goes back to build on its own. Anything below it, or go-back off, stops review for your decision.",
+   "options": [["off", "never; review always stops for you"], ["high", "high only"], ["medium", "medium and high"], ["low", "low, medium and high"], ["nit", "every finding"]],
+   "suggest": "medium"},
+  {"key": "go_back_rounds", "title": "Automatic go-back rounds",
+   "does": "How many times the card can go back on its own before review stops for you. Only used when go-back is on.",
+   "options": [["2", ""], ["4", ""], ["6", ""]],
+   "suggest": "4"}
+]

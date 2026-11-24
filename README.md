@@ -2,7 +2,7 @@
 
 Bureau runs a work item (a Jira ticket, a GitHub issue, a Sentry issue, a pasted user story) through a **workflow**: an ordered list of steps such as plan, build, review and PR. Each step is done by a **persona** (architect, staff engineer, QA…), and any step can be a **gate**, meaning the agent stops and waits until you approve.
 
-It runs inside a [Claude Code](https://claude.com/claude-code) session. There is no database and no web service: it is a folder of skills, markdown files, a few small Python scripts and four hooks. An optional read-only local viewer, `scripts/ui.py`, shows your cards in a browser (see [Viewing cards](#viewing-cards)).
+It runs inside a [Claude Code](https://claude.com/claude-code) session. There is no database and no web service: it is a folder of skills, markdown files, a few small Python scripts and five hooks. An optional read-only local viewer, `scripts/ui.py`, shows your cards in a browser (see [Viewing cards](#viewing-cards)).
 
 ```
 you:    /work https://github.com/acme/shop/issues/412
@@ -24,6 +24,7 @@ What you get:
 | `/consult` (in plain words: "ask the architect…") | Get a persona's advice on the current card |
 | `/issue` (in plain words: "write an issue for this") | Draft a GitHub issue and file it after you approve |
 | `/tune-voice` | Teach Bureau how you want PRs, replies, issues, ticket comments and documents to read (see [Your voice](#your-voice)) |
+| `/setup-bureau` | Answer a short questionnaire to skip the build gate or let review send the card back on its own (see [Standing settings](#standing-settings)) |
 | `scripts/ui.py` | Watch your cards in a read-only browser page |
 | Hooks | Refuse code edits before the gate, the repo rules and card ownership are in place |
 
@@ -94,7 +95,7 @@ Bureau runs on Linux. Card ownership (see [How it works](#how-it-works)) finds t
    claude
    ```
 
-   Project hooks load automatically. If Claude Code asks whether to trust the folder and its hooks, review `.claude/settings.json` (four hook entries, each calling a script in `hooks/`) and accept.
+   Project hooks load automatically. If Claude Code asks whether to trust the folder and its hooks, review `.claude/settings.json` (five hook entries, each calling a script in `hooks/`) and accept.
 
 5. **Check that the gates are active.** In the session, run `/hooks` and confirm you see `PreToolUse` (1), `UserPromptSubmit` (2 commands) and `SessionEnd` (1).
 
@@ -149,6 +150,22 @@ Personas decide what a step says. How it sounds is yours: run `/tune-voice` once
 
 `/tune-voice` reads your global instruction files first (`~/AGENTS.md` and the like) and only adds what they don't cover. It asks which sources to learn from: past Claude Code sessions (`scripts/voice_samples.py` pulls the messages you typed, each with the draft it answered, from `$CLAUDE_CONFIG_DIR/projects`, skipping Agent SDK runs), your GitHub PRs and comments, Jira, or any connected tool such as Slack or email. One read-only subagent reads each source and proposes rules; it then asks about the gaps and writes only the rules you confirm. Run it again to refine, or `/tune-voice <one change>` for a single rule. `voice.md` is gitignored, like `repos.yaml`.
 
+### Standing settings
+
+Two gate decisions you may make the same way on every card can be set once. Type `/setup-bureau` and Bureau answers with a numbered questionnaire, built from `bureau.template.json`: each setting, what it does, lettered options, your current value and a suggestion. Answer with the numbers and letters, any subset:
+
+```
+/setup-bureau 1a 2c 3b
+```
+
+| Setting | What it does | Default |
+|---|---|---|
+| Auto-advance from the code step | `build` (or `fix`) has no gate: docs and review run straight after it. The `review` and `pr` gates stay yours | off |
+| Automatic go-back from review | When review's `Highest severity:` line is at or above the level you pick, `desk.py finish` sends the card back to the code step itself, recorded as `reject-N.md` with `auto:`. Below it, or with this off, review stops at its gate as usual | off |
+| Automatic go-back rounds | How many automatic go-backs before review stops at its gate for you | 4 |
+
+The answers go to `bureau.json` at the Bureau root (gitignored). Only the `UserPromptSubmit` hook `hooks/setup.py` writes it, from the line you type; the gate hook denies the agent's own writes. A card copies the settings into its `state.json` when it starts, so a change applies to new cards only, and `workflow.py show` marks an auto-advanced gate `none (auto)`. At the review and pr gates, the Next block's `Auto:` row lists the automatic go-backs so far.
+
 ## How it works
 
 **Card.** The thing you are working on. Its source of truth is the tracker; Bureau holds a copy in `card.md`.
@@ -191,7 +208,7 @@ desk/SHOP-42/
   plan.v1.md         an artifact replaced by a redo
   plan.feedback-1.md your feedback that caused the redo (desk.py revise)
   review.round-1.md  an approved round of a looping step
-  reject-1.md        why you sent the run back to an earlier step (desk.py reject)
+  reject-1.md        why you sent the run back to an earlier step (desk.py reject; "auto:" when review did, see Standing settings)
   consult-architect-1.md  an answer from /consult
   sessions.jsonl     which session owns the card (written by hooks)
   sessions.lock      lock file for sessions.jsonl
@@ -204,7 +221,7 @@ desk/SHOP-42/
 
 Instructions in `AGENTS.md` are a request. Hooks turn the three most important ones into rules the agent cannot skip.
 
-**1. No code before the gate.** A `PreToolUse` hook (`hooks/gate.py`) denies edits inside a card's worktree unless the current step writes code and every earlier gated step is approved. Only a prompt you type (`/approve`, handled by the `UserPromptSubmit` hook `hooks/approve.py`) can approve, so the agent cannot approve itself.
+**1. No code before the gate.** A `PreToolUse` hook (`hooks/gate.py`) denies edits inside a card's worktree unless the current step writes code and every earlier gated step is approved. Only a prompt you type (`/approve`, handled by the `UserPromptSubmit` hook `hooks/approve.py`) can approve, so the agent cannot approve itself. The one standing approval is `bureau.json` ([Standing settings](#standing-settings)), written only by `hooks/setup.py` from your `/setup-bureau` line; `gate.py` denies the agent's writes to it. `gate.py` also denies a Bash command that runs a prompt hook from Bureau's `hooks/` folder (`approve.py`, `setup.py`, `owner.py`, `session_end.py`; a target repo's own `setup.py` is not one), so the agent cannot pipe a fake prompt into one. Like the file checks, this matches the command's text, so it stops an accidental run, not a deliberate one: quote splitting (`set''up.py`), a glob (`setu?.py`), `python3 -m setup`, a heredoc or `python3 -c` script, a copy of the file, or a name assembled at run time all get past it.
 
 **2. No code before the repo's rules are read.** The same hook denies edits until `hooks/rules.py` has been run for that worktree. It prints and records a hash of:
 
@@ -303,11 +320,11 @@ python3 scripts/trial.py 91   # a PR number; or a branch (bureau/bureau-88) or a
 cd ../bureau-trial-91 && claude      # the hooks and skills come from that branch
 ```
 
-The copy links its `desk/`, `repos.yaml` and `voice.md` to the real ones, so cards, config and claims are shared with the main checkout. `git status` there shows `desk/.gitkeep` as deleted and `desk` as untracked (and `voice.md`, on a branch from before it was gitignored); that is the link, so do not `git add -A` there. Remove it with `git worktree remove ../bureau-trial-91`. Run the script from a checkout that has it (`main` once this is merged), not from a card's worktree.
+The copy links its `desk/`, `repos.yaml`, `voice.md` and `bureau.json` to the real ones, so cards, config and claims are shared with the main checkout. `git status` there shows `desk/.gitkeep` as deleted and `desk` as untracked (and `voice.md`, on a branch from before it was gitignored); that is the link, so do not `git add -A` there. Remove it with `git worktree remove ../bureau-trial-91`. Run the script from a checkout that has it (`main` once this is merged), not from a card's worktree.
 
 ### Keep local files out of the public repo
 
-Anything personal (a persona with your company's conventions, a private workflow) can go in `personas/` or `workflows/` under a name you add to `.git/info/exclude`. Your voice already stays local: `voice.md` is gitignored.
+Anything personal (a persona with your company's conventions, a private workflow) can go in `personas/` or `workflows/` under a name you add to `.git/info/exclude`. Your voice and settings already stay local: `voice.md` and `bureau.json` are gitignored.
 
 ### Project cards: a list of tasks run in parallel
 
@@ -325,10 +342,12 @@ A child is merged when `gh pr view` says so for the PR link in its `pr.md`; the 
 | `.claude/skills/consult` | Ask a persona a question about the current card |
 | `.claude/skills/issue` | Draft a GitHub issue in the repo's house style, file it after you approve |
 | `.claude/skills/tune-voice` | `/tune-voice`: create or refine `voice.md` from your sources and answers |
-| `.claude/settings.json` | Registers the four hooks |
+| `.claude/skills/setup-bureau` | `/setup-bureau`: shows the questionnaire the hook printed |
+| `.claude/settings.json` | Registers the five hooks |
 | `hooks/gate.py` | Denies code writes until the gate, the rules and card ownership are satisfied |
 | `hooks/rules.py` | Collects and acknowledges the repo's instruction files |
 | `hooks/approve.py` | Records `/approve` from your own prompt |
+| `hooks/setup.py` | Prints the `/setup-bureau` questionnaire and saves your answers to `bureau.json` |
 | `hooks/owner.py` | Claims a card for the session that runs `/work <id>`, or blocks it if another live session holds it |
 | `hooks/session_end.py` | Frees the cards a session owns when it ends |
 | `hooks/sessions.py` | Helper for the three above: reads and writes `sessions.jsonl` |
@@ -348,6 +367,8 @@ A child is merged when `gh pr view` says so for the PR link in its `pr.md`; the 
 | `AGENTS.md` | Base rules loaded for every card |
 | `repos.yaml.sample` | Copy to `repos.yaml` |
 | `voice.md` | Your voice, written by `/tune-voice`; gitignored |
+| `bureau.template.json` | The `/setup-bureau` questions: each setting's options and suggestion |
+| `bureau.json` | Your standing settings, written only by `hooks/setup.py`; gitignored |
 | `LICENSE`, `CONTRIBUTING.md`, `SECURITY.md` | MIT license, how to contribute, how to report a gate bypass |
 | `.github/ISSUE_TEMPLATE/` | Issue forms: bug report, idea, question |
 | `desk/` | Run state, gitignored |
@@ -366,6 +387,8 @@ A child is merged when `gh pr view` says so for the PR link in its `pr.md`; the 
 | "Card x is held by session …" or "…is held by live session … there is no override" | Another live session owns the card. Close it, then run `/work <card-id>` |
 | "Card x has no live owner session. Run /work x to take over." | The owner ended or died. Run `/work <card-id>` in this session |
 | "approvals.json is written only by the /approve hook; sessions.jsonl only by the session hooks." | A command that names either file is denied unless every part of it is read-only (the commands in the "A read-only command is denied" row, plus `desk.py list` and `desk.py next`). Run the other part as its own command |
+| "hooks/<name>.py runs only from your own prompt (/approve, /setup-bureau, /work) or session end, not from Bash." | The agent tried to run a prompt hook itself. Type the command (`/approve`, `/setup-bureau …`) instead; reading the hook with `cat` is allowed |
+| "bureau.json holds the human's standing approvals; only their /setup-bureau writes it." | A write to `bureau.json` other than your `/setup-bureau` line. Type `/setup-bureau` to change the settings |
 | "Step 'x' does not write code" | The run is not on a build step yet; finish the earlier steps. Non-build steps can still run the read-only commands in the "A read-only command is denied" row |
 | "unknown repo 'x'" | Add it to `repos.yaml` |
 | "repos.yaml not found; create it with: cp …" | Run the `cp` command in the message (see Register your repositories) |
@@ -393,7 +416,7 @@ python3 -I -m unittest discover -s tests   # unit tests, no network, a few secon
 tests/e2e_canary.sh                         # real `claude -p` runs; costs a few model calls
 ```
 
-The end-to-end script builds a throwaway Bureau copy and checks that a write is refused before the rules are loaded, that rules from both the repo and a parent folder then reach the model, and that a raw `/approve` prompt reaches the hook. Run it again after upgrading Claude Code, since the hooks depend on its behaviour. Set `E2E_MODEL` to change the model. The unit tests point the hooks at a temporary setup with `BUREAU_DESK`, `BUREAU_REPOS` (a `repos.yaml`) and `BUREAU_CLAUDE_PID` (a stand-in `claude` process); you do not need them otherwise.
+The end-to-end script builds a throwaway Bureau copy and checks that a write is refused before the rules are loaded, that rules from both the repo and a parent folder then reach the model, and that raw `/approve` and `/setup-bureau` prompts reach their hooks. Run it again after upgrading Claude Code, since the hooks depend on its behaviour. Set `E2E_MODEL` to change the model. The unit tests point the hooks at a temporary setup with `BUREAU_DESK`, `BUREAU_REPOS` (a `repos.yaml`) and `BUREAU_CLAUDE_PID` (a stand-in `claude` process); you do not need them otherwise.
 
 ## Contributing and support
 

@@ -14,6 +14,9 @@ Start with `/work`. State lives in `desk/<card-id>/`; reusable parts live in `wo
   The gate hook does not enforce this outside worktrees; it is on you.
 - **Never approve your own gate.** Only the human's `/approve` records approval. Do not write
   `approvals.json`. After a gated step finishes, set `awaiting` in `state.json` to that step's id and stop.
+  The one standing approval is `bureau.json`, written only by the human's `/setup-bureau`: a card copies it at start,
+  and it can drop the code step's gate (`auto_advance`) or let `desk.py finish` send a review back to the code step
+  (`go_back`). Do not write `bureau.json` either.
 - **One writer per unit of work.** Read-only roles (review, QA, triage) run as subagents; give
   them the rule output in their prompt.
 - **State files:** `state.json` (progress, you may update `current` and `awaiting`),

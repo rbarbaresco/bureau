@@ -68,8 +68,9 @@ def resolve(name_or_file):
 def start(name_or_file, card_dir):
     path = resolve(name_or_file)
     wf = parse(path)
-    steps = [{k: v for k, v in s.items() if k != "instructions"} for s in wf["steps"]]
-    desk.init(card_dir, steps, wf["name"])
+    cfg = desk.settings()  # the human's /setup-bureau answers, fixed into this card's state
+    steps = desk.apply_settings([{k: v for k, v in s.items() if k != "instructions"} for s in wf["steps"]], cfg)
+    desk.init(card_dir, steps, wf["name"], cfg)
     dest = os.path.join(card_dir, "workflow.md")  # the run keeps its own copy
     if os.path.abspath(path) != os.path.abspath(dest):
         shutil.copy(path, dest)
@@ -86,9 +87,13 @@ if __name__ == "__main__":
                     print(f"{w['name']}: {w['use_when']}")
         elif a[:1] == ["show"] and len(a) == 2:
             steps = parse(resolve(a[1]))["steps"]
+            try:
+                steps = desk.apply_settings([dict(x) for x in steps], desk.settings())
+            except ValueError as e:  # start refuses it too; show the table as written
+                print(f"warning: auto_advance not applied: {e}", file=sys.stderr)
             print("| step | persona | voice | gate | writes code |\n|---|---|---|---|---|")  # /work pastes this table unchanged
             for s in steps:
-                gate = s["gate"] + (" (loop)" if s["loop"] else "")
+                gate = s["gate"] + (" (loop)" if s["loop"] else "") + (" (auto)" if s.get("auto") else "")
                 print(f"| {s['id']} | {s.get('persona', '-')} | {s.get('voice', '')} | {gate} | {'yes' if s['writes_code'] else ''} |")
             try:  # a catalogue step alone may fail this; a workflow that does is refused by start
                 desk.validate_steps(steps, run=True)

@@ -15,6 +15,8 @@ advance: moves on once the awaiting step is approved (approvals.json is written 
 doctor: one line per problem on a card (every active card if none given), each naming its fix; exits 1 if any
 is left. Its only write is relinking worktrees whose paths moved (git worktree repair, idempotent).
 A step is {"id", "gate": none|approve|approve+check, "persona"?, "voice"?, "writes_code"?, "loop"?}.
+finish on review: with the card's go_back setting (bureau.json, snapshot in state.json) and review.md's
+`Highest severity:` at or above it, rejects back to the code step itself (reject-N.md "auto:"), up to go_back_rounds.
 loop: a gated step that repeats. /approve approves a round (artifact kept as <step>.round-N.md, step stays current);
 /approve done (recorded as "done") approves the last round and advances.
 """
@@ -28,6 +30,9 @@ import worktree
 
 GATES = ("none", "approve", "approve+check")
 VOICES = ("operator",)  # operator -> voice.md at the Bureau root, written by /tune-voice
+SEVERITIES = ("nit", "low", "medium", "high")  # review.md's `Highest severity:` line, lowest first
+# bureau.json: the human's standing settings, written only by hooks/setup.py (/setup-bureau); questions in bureau.template.json
+SETTINGS = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "bureau.json")
 
 
 def validate_steps(steps, run=False):
@@ -63,15 +68,36 @@ def save(card_dir, state):
         json.dump(state, f, indent=2)
 
 
-def init(card_dir, steps, workflow=None):
+def settings():
+    try:
+        with open(SETTINGS) as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def apply_settings(steps, cfg):
+    """auto_advance on: the first gated code step (build, fix) loses its gate; a later gate (pr) must remain."""
+    if cfg.get("auto_advance") == "on":
+        code = next((s for s in steps if s.get("writes_code") and s.get("gate", "none") != "none"), None)
+        if code:
+            code.update(gate="none", auto=True)
+            validate_steps(steps, run=True)
+    return steps
+
+
+def init(card_dir, steps, workflow=None, settings=None):
     validate_steps(steps, run=True)
     if os.path.basename(os.path.abspath(card_dir)) == "done":
         raise ValueError("card id 'done' is reserved (/approve done); rename the card")
     if os.path.exists(os.path.join(card_dir, "state.json")):
         raise FileExistsError(f"{card_dir} already has a run; resume it instead")
     os.makedirs(os.path.join(card_dir, "worktrees"), exist_ok=True)
-    save(card_dir, {"card": os.path.basename(card_dir.rstrip("/")), "workflow": workflow,
-                    "current": steps[0]["id"], "steps": steps})
+    state = {"card": os.path.basename(card_dir.rstrip("/")), "workflow": workflow, "current": steps[0]["id"], "steps": steps}
+    if settings:
+        state["settings"] = settings  # a snapshot: a later /setup-bureau changes new cards only
+    save(card_dir, state)
 
 
 def _ids(state):
@@ -117,12 +143,61 @@ def finish(card_dir):
     if cur == "done" or s.get("awaiting"):
         raise ValueError(f"nothing to finish (current={cur}, awaiting={s.get('awaiting')})")
     step = s["steps"][_ids(s).index(cur)]
+    back = _go_back(card_dir, s) if cur == "review" else None
+    if back:
+        return reject(card_dir, *back)
     if step.get("gate", "none") == "none":
         s["current"] = _next(s, cur)
     else:
         s["awaiting"] = cur
     save(card_dir, s)
     return s
+
+
+def _severity(card_dir):
+    """The value of review.md's first line that is not blank or a heading; a quote of the line further down never counts."""
+    try:
+        with open(os.path.join(card_dir, "review.md")) as f:
+            first = next((l for l in f if l.strip() and not l.lstrip().startswith("#")), "")
+    except OSError:
+        return None
+    m = re.match(r"\W*Highest severity\W*\s*(none|" + "|".join(SEVERITIES) + r")\b", first, re.I)
+    return m and m[1].lower()
+
+
+def _read(path):
+    with open(path) as f:
+        return f.read()
+
+
+def _auto_rejects(card_dir):
+    return sorted((f for f in os.listdir(card_dir) if re.fullmatch(r"reject-\d+\.md", f)
+                   and re.match(r"back to \S+: auto:", _read(os.path.join(card_dir, f)))),
+                  key=lambda f: int(f[7:-3]))
+
+
+def _go_back(card_dir, state):
+    """(code step, reason) when the human's go_back setting sends a finished review back on its own, else None."""
+    cfg = state.get("settings") or {}
+    at, sev = cfg.get("go_back"), _severity(card_dir)
+    if at not in SEVERITIES or sev not in SEVERITIES or SEVERITIES.index(sev) < SEVERITIES.index(at):
+        return None
+    rounds, used = int(cfg.get("go_back_rounds", 4)), len(_auto_rejects(card_dir))
+    code = next((s["id"] for s in state["steps"] if s.get("writes_code")), None)
+    if not code or used >= rounds:
+        return None
+    return code, f"auto: review found {sev} (round {used + 1} of {rounds})"
+
+
+def _auto_rows(card_dir, state, step):
+    """At the review and pr gates: the automatic go-backs so far, and a review.md the go_back setting could not read."""
+    rows, auto = "", _auto_rejects(card_dir)
+    if auto:
+        rows += _row("Auto:", f"{len(auto)} go-back{'s' if len(auto) > 1 else ''} from review ({', '.join(auto)})")
+    code = any(s.get("writes_code") for s in state["steps"])  # peer-review's review has nothing to go back to
+    if step == "review" and code and (state.get("settings") or {}).get("go_back") in SEVERITIES and not _severity(card_dir):
+        rows += _row("" if rows else "Auto:", "review.md has no `Highest severity:` line, so it did not go back on its own")
+    return rows
 
 
 SIDE_EFFECTS = {"pr": "pushes the branch and opens a draft PR, then ",
@@ -198,6 +273,7 @@ def _block(card_dir, state):
         qs = _questions(card_dir, aw)
         return ("Next\n" + where
                 + _row("Review:", os.path.join(card_dir, aw + ".md"))
+                + _auto_rows(card_dir, state, aw)
                 + "".join(_row("Questions:" if i == 0 else "", f"- {q}") for i, q in enumerate(qs))
                 + ("" if qs else _row("Questions:", "none"))
                 + _row("Approve:", f"/approve {cid} -> " + (f"another round of {aw}" if loop else after))
