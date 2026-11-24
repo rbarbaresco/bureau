@@ -12,7 +12,7 @@
    "options": [["2", ""], ["4", ""], ["6", ""]],
    "suggest": "4"},
   {"key": "issue_comments", "title": "Comment on known Bureau issues",
-   "does": "When a card hits a known Bureau issue, Bureau always counts it locally. When on, it also comments on the issue, which may be in a public repo: the card and what was hit for a Bureau card, only the date for a card from another repo. This is your standing approval for that one kind of comment.",
+   "does": "When a card hits a known Bureau issue, Bureau always counts it locally. When on, it also comments on the issue, which may be in a public repo: the card and what was hit for a card that changes only Bureau, only the date for any other card. This is your standing approval for that one kind of comment.",
    "options": [["off", "count locally only"], ["on", "also comment on the issue"]],
    "suggest": "off"}
 ]

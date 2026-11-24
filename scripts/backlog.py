@@ -3,14 +3,15 @@
 
 Usage:
   backlog.py                                   print the view
-  backlog.py hit <n> <card-dir> '<what>'       log that a card hit known issue #n (refused if #n is not in the view)
+  backlog.py hit <n> <card-dir> '<what>'       log that a card hit known issue #n (refused if the view lacks #n)
   backlog.py summary                           open issues by hit count
 The view (desk/backlog.md) holds each open issue's number, title, labels and short version: the `**Short:**` paragraph
 at the top of its body (the issue skill writes it), at most 3 lines; an issue without one shows its title only. It is
 rebuilt with `gh issue list` in Bureau's root (so the repo is this checkout's remote) when missing or over a day old;
 if gh fails, the old view is printed with its age. A hit is always appended to desk/backlog-hits.jsonl; when the card's
 issue_comments setting is on (/setup-bureau, the standing approval for that one write) it is also posted on the issue:
-with the card id and what was hit for a Bureau card, the date only for a card from another repo (Bureau's may be public).
+with the card id and what was hit for a card whose only worktree is `bureau`, else the date only (Bureau's repo may be
+public). With no view at all (offline, never fetched) the hit is logged unchecked and nothing is posted.
 """
 import collections
 import datetime
@@ -29,14 +30,14 @@ import sessions  # noqa: E402
 
 DAY = 24 * 3600
 SHORT = re.compile(r"\s*\*\*Short:\*\*[ \t]*(.*?)(?:\n[ \t]*\n|\Z)", re.S)  # only at the very top of the body
-HEAD = re.compile(r"#(\d+) (.*?)(?: \[[^\]]*\])?")  # labels in [] are not part of the title
+HEAD = re.compile(r"#(\d+) (.*?)(?: \[labels: [^\]]*\])?")  # labels are not part of the title; a title's own [WIP] is
 
 
 def short(body):
     m = SHORT.match((body or "").replace("\r\n", "\n"))
     lines = []
     for line in (m[1].splitlines() if m else []):
-        if re.match(r"\s*(#|\*\*)", line):
+        if re.match(r"\s*(#+\s|\*\*)", line):  # `#111 covers part` is text, not a heading
             break  # a heading or the next bold section, with no blank line before it
         lines += [line.strip()] if line.strip() else []
     return "\n".join(lines[:3])[:400]
@@ -56,7 +57,7 @@ def refresh(path):
     out = [f"Bureau's open issues, {datetime.date.today()} (#, title, short version):"]
     for i in sorted(issues, key=lambda i: -i["number"]):
         labels = ",".join(lb["name"] for lb in i.get("labels") or [])
-        out.append(f"#{i['number']} {i['title']}" + (f" [{labels}]" if labels else ""))
+        out.append(f"#{i['number']} {i['title']}" + (f" [labels: {labels}]" if labels else ""))
         out += ["  " + line for line in short(i.get("body")).splitlines()]
     tmp = f"{path}.{os.getpid()}.tmp"  # one per process: two sessions refreshing at once don't share it
     with open(tmp, "w") as f:
@@ -87,19 +88,22 @@ def hit(issue, card, what, desk_dir=None, today=None):
     n = int(str(issue).lstrip("#"))
     if not os.path.isdir(card):
         raise ValueError(f"{card} is not a card folder")
-    text = view(desk_dir)
-    if str(n) not in titles(text):
-        raise ValueError(f"#{n} is not an open issue in the backlog view; check the number. {text.splitlines()[0]}")
+    open_issues = titles(view(desk_dir))
+    if open_issues and str(n) not in open_issues:
+        raise ValueError(f"#{n} is not an open issue in the backlog view; check the number.")
     card_id = os.path.basename(os.path.realpath(card))
     state = os.path.join(card, "state.json")
     cfg = (desk.load(card).get("settings") or {}) if os.path.exists(state) else desk.settings()  # not started: today's
     date = str(today or datetime.date.today())
     with open(os.path.join(desk_dir or sessions.DESK, "backlog-hits.jsonl"), "a") as f:
         f.write(json.dumps({"issue": n, "card": card_id, "date": date, "what": what}) + "\n")
+    if not open_issues:  # offline with no view yet: count it, but don't post to a number we couldn't check
+        return f"Logged a hit on #{n}; the backlog view is unavailable, so the number was not checked and nothing was posted."
     if cfg.get("issue_comments") != "on":
         return f"Logged a hit on #{n}."
-    # Bureau's repo may be public: a card from another repo (a Jira key, a private path) posts the date only
-    own = card_id.startswith("bureau-") or os.path.isdir(os.path.join(card, "worktrees", "bureau"))
+    # Bureau's repo may be public: only a card whose sole worktree is Bureau posts its id and text; others the date
+    wts = os.path.join(card, "worktrees")
+    own = os.path.isdir(wts) and [w for w in os.listdir(wts) if not w.startswith(".")] == ["bureau"]
     body = f"Hit again on {card_id}: {what}" if own else f"Hit again ({date}) on a card outside Bureau."
     try:
         gh("issue", "comment", str(n), "--body", body)

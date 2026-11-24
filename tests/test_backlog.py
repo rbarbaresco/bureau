@@ -34,6 +34,7 @@ class ShortTest(unittest.TestCase):
     def test_stops_at_a_heading_without_a_blank_line(self):
         self.assertEqual(backlog.short("**Short:** a\n## Problem\nlong"), "a")
         self.assertEqual(backlog.short("**Short:** a\n**Problem**\nlong"), "a")
+        self.assertEqual(backlog.short("**Short:** a\n#111 covers part."), "a\n#111 covers part.")
 
     def test_capped_at_three_lines(self):
         self.assertEqual(backlog.short("**Short:** a\nb\nc\nd\ne"), "a\nb\nc")
@@ -49,7 +50,7 @@ class ViewTest(unittest.TestCase):
         with mock.patch.object(subprocess, "run", return_value=run_ok(json.dumps(ISSUES))) as run:
             out = backlog.view(self.desk)
         self.assertEqual(run.call_args.kwargs["cwd"], backlog.ROOT)
-        self.assertIn("#111 Gate friction [enhancement]\n  The gate denies reads.\n  Fix it.\n#109 Rethink project\n", out)
+        self.assertIn("#111 Gate friction [labels: enhancement]\n  The gate denies reads.\n  Fix it.\n#109 Rethink project\n", out)
         self.assertNotIn("long text", out)
 
     def test_fresh_view_is_not_refetched(self):
@@ -83,7 +84,8 @@ class ViewTest(unittest.TestCase):
             self.assertFalse(os.path.exists(self.path))
 
     def test_titles_drop_labels(self):
-        self.assertEqual(backlog.titles("x\n#5 A [b] c [bug,enhancement]\n  short\n#6 Plain"), {"5": "A [b] c", "6": "Plain"})
+        self.assertEqual(backlog.titles("x\n#5 A [b] c [labels: bug,enhancement]\n  short\n#6 Fix parser [WIP]"),
+                         {"5": "A [b] c", "6": "Fix parser [WIP]"})
 
 
 class HitTest(unittest.TestCase):
@@ -115,11 +117,31 @@ class HitTest(unittest.TestCase):
             backlog.hit("#111", self.card, "sed -n denied on private/path", self.desk, today="2026-11-24")
         self.assertEqual(run.call_args.args[0],  # another repo's card: no card id or free text on Bureau's repo
                          ["gh", "issue", "comment", "111", "--body", "Hit again (2026-11-24) on a card outside Bureau."])
-        own = os.path.join(self.desk, "bureau-7")
-        desk.init(own, [{"id": "plan", "gate": "approve"}], settings={"issue_comments": "on"})
-        with mock.patch.object(subprocess, "run", return_value=run_ok()) as run:
-            backlog.hit("111", own, "sed -n denied", self.desk)
-        self.assertEqual(run.call_args.args[0][-1], "Hit again on bureau-7: sed -n denied")
+        cases = {("bureau",): "Hit again on c: sed -n denied",  # only Bureau's worktree: id and text
+                 ("bureau", "billing"): "Hit again (2026-11-24) on a card outside Bureau.",
+                 ("billing",): "Hit again (2026-11-24) on a card outside Bureau.",  # a `bureau-` slug is not enough
+                 (): "Hit again (2026-11-24) on a card outside Bureau."}
+        for i, (wts, body) in enumerate(cases.items()):
+            card = os.path.join(self.desk, f"bureau-{i}", "c")
+            desk.init(card, [{"id": "plan", "gate": "approve"}], settings={"issue_comments": "on"})
+            for w in wts:
+                os.makedirs(os.path.join(card, "worktrees", w))
+            with mock.patch.object(subprocess, "run", return_value=run_ok()) as run:
+                backlog.hit("111", card, "sed -n denied", self.desk, today="2026-11-24")
+            self.assertEqual(run.call_args.args[0][-1], body, wts)
+
+    def test_no_view_offline_still_logs_and_posts_nothing(self):
+        self.set_comments("on")
+        os.remove(os.path.join(self.desk, "backlog.md"))
+        with mock.patch.object(subprocess, "run", side_effect=FileNotFoundError("gh")) as run:
+            msg = backlog.hit("111", self.card, "x", self.desk)
+        self.assertEqual(run.call_count, 1)  # the failed refresh, no comment
+        self.assertIn("nothing was posted", msg)
+        self.assertEqual(len(self.hits()), 1)
+        open(os.path.join(self.desk, "backlog.md"), "w").close()  # an empty, truncated view: no IndexError
+        with mock.patch.object(subprocess, "run", side_effect=FileNotFoundError("gh")):
+            backlog.hit("111", self.card, "x", self.desk)
+        self.assertEqual(len(self.hits()), 2)
 
     def test_issue_not_in_the_view_is_refused(self):
         with mock.patch.object(subprocess, "run") as run, self.assertRaises(ValueError):
